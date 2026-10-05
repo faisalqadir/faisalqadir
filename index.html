@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Air – Your agent for creative tasks</title>
+<style>
+  :root{
+    --bg:#fafaf7; --ink:#0d0d0d; --muted:#5c5c58; --line:#e4e3dc;
+    --card:#ffffff; --accent:#1a1aff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+
+  /* NAV */
+  header{position:sticky;top:0;z-index:10;background:rgba(250,250,247,.85);backdrop-filter:blur(12px);border-bottom:1px solid transparent}
+  nav{max-width:1200px;margin:0 auto;padding:16px 24px;display:flex;align-items:center;gap:32px}
+  .logo{font-weight:800;font-size:26px;letter-spacing:-.04em}
+  .links{display:flex;gap:4px;flex:1}
+  .links a{padding:8px 12px;border-radius:8px;font-size:15px;color:var(--muted);transition:.15s}
+  .links a:hover{background:#eeede6;color:var(--ink)}
+  .actions{display:flex;gap:8px;align-items:center}
+  .btn{display:inline-block;padding:10px 18px;border-radius:999px;font-size:15px;font-weight:500;border:1px solid var(--line);background:transparent;transition:.15s}
+  .btn:hover{background:#eeede6}
+  .btn.dark{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .btn.dark:hover{background:#2b2b2b}
+  .btn.lg{padding:16px 30px;font-size:17px}
+
+  /* HERO */
+  .hero{position:relative;overflow:hidden;text-align:center;padding:96px 24px 40px}
+  .hero::before{content:"";position:absolute;inset:-20% -10% auto;height:70%;z-index:-1;
+    background:radial-gradient(40% 50% at 25% 40%,#ffd9c7aa,transparent),
+               radial-gradient(40% 50% at 75% 30%,#cfd9ffaa,transparent),
+               radial-gradient(35% 45% at 50% 70%,#e6ffd6aa,transparent);
+    filter:blur(30px)}
+  .eyebrow{display:inline-flex;gap:8px;align-items:center;padding:6px 14px;border:1px solid var(--line);border-radius:999px;background:var(--card);font-size:14px;color:var(--muted)}
+  .eyebrow i{width:8px;height:8px;border-radius:50%;background:#22c55e;display:block}
+  h1{font-size:clamp(44px,8vw,104px);line-height:.98;letter-spacing:-.05em;font-weight:800;margin:28px auto 0;max-width:12ch}
+  h1 em{font-style:italic;font-weight:500;font-family:Georgia,"Times New Roman",serif;letter-spacing:-.03em}
+  .sub{font-size:clamp(18px,2vw,24px);color:var(--muted);margin:28px auto 40px;max-width:32ch}
+  .cta{display:flex;justify-content:center;gap:12px;flex-wrap:wrap}
+
+  /* PILLARS */
+  .pillars{max-width:1200px;margin:72px auto 0;display:grid;grid-template-columns:repeat(3,1fr);gap:16px;text-align:left}
+  .pillar{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:28px;transition:transform .2s,box-shadow .2s}
+  .pillar:hover{transform:translateY(-4px);box-shadow:0 16px 40px -20px #0003}
+  .ico{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;font-size:22px;margin-bottom:56px}
+  .pillar:nth-child(1) .ico{background:#ffe8dc}
+  .pillar:nth-child(2) .ico{background:#dde6ff}
+  .pillar:nth-child(3) .ico{background:#e1f7d5}
+  .pillar h3{font-size:24px;letter-spacing:-.02em;margin-bottom:8px}
+  .pillar p{color:var(--muted);font-size:16px}
+
+  .tag{text-align:center;margin:80px 0 48px;font-size:18px;color:var(--muted)}
+
+  @media(max-width:860px){
+    .links{display:none}
+    nav{justify-content:space-between}
+    .pillars{grid-template-columns:1fr}
+    .hero{padding-top:64px}
+  }
+</style>
+</head>
+<body>
+<header>
+  <nav>
+    <a class="logo" href="#">air</a>
+    <div class="links">
+      <a href="#">Features</a>
+      <a href="#">Solutions</a>
+      <a href="#">Pricing</a>
+      <a href="#">Resources</a>
+      <a href="#">About</a>
+    </div>
+    <div class="actions">
+      <a class="btn" href="#">Login</a>
+      <a class="btn" href="#">Book a demo</a>
+      <a class="btn dark" href="#">Start for free</a>
+    </div>
+  </nav>
+</header>
+
+<main>
+  <section class="hero">
+    <span class="eyebrow"><i></i> Air</span>
+    <h1>Your agent for <em>creative</em> tasks</h1>
+    <p class="sub">Air keeps track. So you keep creating.</p>
+    <div class="cta">
+      <a class="btn dark lg" href="#">Get some Air</a>
+    </div>
+
+    <div class="pillars">
+      <article class="pillar">
+        <div class="ico">✦</div>
+        <h3>Understand</h3>
+        <p>Air learns your brand from everything you add—assets, guidelines, performance data. The more it sees, the more it gets right.</p>
+      </article>
+      <article class="pillar">
+        <div class="ico">▤</div>
+        <h3>Organize</h3>
+        <p>Your library, structured and current. Reviews and sign-offs live in one place, and Air handles the housekeeping when you ask.</p>
+      </article>
+      <article class="pillar">
+        <div class="ico">⤢</div>
+        <h3>Scale</h3>
+        <p>One finished design becomes every size, format, and channel. Air adapts the work so you never remake it.</p>
+      </article>
+    </div>
+
+    <p class="tag">Where great creative teams do their best work</p>
+  </section>
+</main>
+</body>
+</html>
