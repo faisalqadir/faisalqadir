@@ -1,0 +1,23 @@
+{
+  "skill_name": "scroll-3d-hero",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I sell compostable bagasse plates. On my static landing page (index.html) I want the plate in the hero to float in 3D, flip over as people scroll and end up sitting in the product card further down, like kanaknaturals.com. I don't have a 3D model yet.",
+      "expected_output": "Page updated with track/layer/stage markup and CSS, scroll-3d-hero.js copied in, procedural plate, keyframes ending on an anchor in the product card, mobile overrides, preview screenshots checked.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Next.js 14 app router site for a coffee brand. I have public/models/cup.glb (about 9 MB, exported from Blender). Make the cup spin slowly in the hero and zig-zag next to the three feature sections as you scroll. It must not break on mobile.",
+      "expected_output": "Client component using dynamic import + destroy cleanup, gltf-transform compression advice/command, keyframes using section selectors with alternating x, spin option, responsive keyframes.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "the 3d bottle on our webflow site doesn't stay pinned when I scroll, it just scrolls away with the page. we used this scroll-3d-hero thing. help",
+      "expected_output": "Diagnoses overflow hidden on an ancestor (Webflow page wrapper/body) breaking position: sticky, recommends overflow: clip, mentions the runtime's console warning and checks stage CSS.",
+      "files": []
+    }
+  ]
+}
