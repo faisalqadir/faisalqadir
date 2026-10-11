@@ -15,6 +15,11 @@
  *   size    the object's largest dimension as a fraction of the viewport's shorter side
  *   rotate  [x, y, z] in degrees, interpolated per axis, so -360 means one full revolution
  *   shadow  0..1 opacity multiplier for the soft ground shadow
+ *   clip, clipTime  scrub an animation clip with the scroll between keyframes (see ANIMATION_DEFAULTS)
+ *
+ * Animated models (an animal, a character): give the model an `animation` config and the runtime plays
+ * its glTF clips, picking idle / walk / run from how fast the object travels and turning it to face
+ * where it is going. See ANIMATION_DEFAULTS below.
  */
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -26,6 +31,26 @@ const DEG = Math.PI / 180;
 const POSE_KEYS = ['x', 'y', 'z', 'size', 'rx', 'ry', 'rz', 'shadow'];
 const POSE_DEFAULTS = { x: 0, y: 0, z: 0, size: 0.6, rx: 0, ry: 0, rz: 0, shadow: 0 };
 const NESTED_OPTIONS = ['camera', 'idle', 'shadow', 'lighting'];
+
+// For models with animation clips. Speeds are in body lengths per second (the model's longest side),
+// or screens per second with drive: 'scroll'.
+export const ANIMATION_DEFAULTS = {
+  idle: 0, // clip name (or index) played at rest; a string config like animation: 'Walk' just loops that clip
+  walk: null, // clip played while travelling slowly
+  run: null, // clip played while travelling fast
+  walkAbove: 0.08, // speed that switches idle -> walk
+  runAbove: 1.4, // speed that switches walk -> run
+  walkSpeed: 0.6, // speed at which the walk clip plays at its normal rate, so the feet keep up with the ground
+  runSpeed: 2, // the same for the run clip
+  fade: 0.3, // crossfade between clips, in seconds
+  drive: 'motion', // 'motion' = how fast it travels across the screen; 'scroll' = how fast the page scrolls
+  face: true, // turn to face the direction of travel; or { moving: 90, idle: 35, start: 1 } in degrees / ±1
+  still: 'idle', // at rest: 'idle' plays the idle clip; 'pose' holds the idle clip's first frame (no motion);
+  //               'freeze' keeps whatever pose it stopped in
+};
+// Scroll-scrubbed clips: between two keyframes that set the same `clip` and a `clipTime` (in cycles),
+// that clip follows the scrollbar instead of the clock, e.g. a leap that freezes mid-air when the
+// visitor stops scrolling:  { at: 0.2, clip: 'Run', clipTime: 0 }, { at: 0.4, clip: 'Run', clipTime: 1 }
 const TONE_MAPPINGS = { neutral: THREE.NeutralToneMapping, aces: THREE.ACESFilmicToneMapping, agx: THREE.AgXToneMapping, none: THREE.NoToneMapping };
 
 export const easings = {
@@ -38,7 +63,8 @@ export const easings = {
 const DEFAULTS = {
   track: '.s3h', // element whose scroll range drives the animation (wraps hero + following sections)
   stage: '.s3h-stage', // sticky, viewport-sized element inside the track; the canvas goes here
-  model: { shape: 'plate' }, // { shape: 'plate' | 'bowl', color } | { url: 'model.glb' } | { object: THREE.Object3D }
+  model: { shape: 'plate' }, // { shape: 'plate' | 'bowl', color } | { url: 'model.glb' } | { buffer: ArrayBuffer } | { object }
+  //                            add animation: { idle: 'Idle', walk: 'Walk', run: 'Run' } to play a model's clips
   keyframes: [
     { at: 0, x: 0.5, y: -0.38, size: 1.15, rotate: [60, -30, 20] },
     { at: 0.5, x: -0.1, y: 0.05, size: 0.45, rotate: [-110, 15, -10] },
@@ -64,6 +90,8 @@ const DEFAULTS = {
 
 export function createScroll3DHero(userOptions = {}) {
   const base = mergeOptions(DEFAULTS, userOptions);
+  // a walking animal shouldn't also sway like a floating product
+  if (userOptions.idle === undefined && base.model && base.model.animation) base.idle = false;
   const track = resolveElement(base.track);
   const stage = resolveElement(base.stage);
   if (!track || !stage) {
@@ -100,13 +128,16 @@ export function createScroll3DHero(userOptions = {}) {
   rimLight.position.set(-4, 2, -3);
   scene.add(keyLight, rimLight);
 
-  // root = keyframed pose, motion = idle wobble, swap = model-change transition, spinner = turntable spin
+  // root = keyframed pose, motion = idle wobble, heading = an animal turning to face its way,
+  // swap = model-change transition, spinner = turntable spin
   const root = new THREE.Group();
   const motion = new THREE.Group();
+  const heading = new THREE.Group();
   const swap = new THREE.Group();
   const spinner = new THREE.Group();
   root.add(motion);
-  motion.add(swap);
+  motion.add(heading);
+  heading.add(swap);
   swap.add(spinner);
   scene.add(root);
 
@@ -123,6 +154,7 @@ export function createScroll3DHero(userOptions = {}) {
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
   const mediaQueries = Object.keys(base.responsive || {}).map((q) => matchMedia(q));
 
+  const walker = { speed: 0, vx: 0, dir: 0, last: null, lastProgress: 0, snap: true, moved: false }; // animated models
   let opts = base;
   let frames = [];
   let tracks = {};
@@ -210,6 +242,8 @@ export function createScroll3DHero(userOptions = {}) {
             if (typeof v === 'number') frame.values[['rx', 'ry', 'rz'][i]] = v;
           });
         }
+        if (typeof kf.clipTime === 'number') frame.values.clipTime = kf.clipTime;
+        if (kf.clip) frame.values.clip = kf.clip;
         if (kf.anchor) {
           frame.anchorEl = resolveElement(kf.anchor);
           if (!frame.anchorEl) console.warn(`[scroll-3d-hero] anchor "${kf.anchor}" not found`);
@@ -223,6 +257,7 @@ export function createScroll3DHero(userOptions = {}) {
       .sort((a, b) => a.at - b.at || a.index - b.index);
     tracks = {};
     for (const key of POSE_KEYS) tracks[key] = frames.filter((f) => hasValue(f, key));
+    tracks.clipTime = frames.filter((f) => f.values.clipTime !== undefined);
   }
 
   function hasValue(frame, key) {
@@ -278,6 +313,21 @@ export function createScroll3DHero(userOptions = {}) {
     return valueOf(list[list.length - 1], key);
   }
 
+  // The clip being scrubbed at progress p, if p lies between two keyframes that scrub the same clip.
+  function sampleClip(p) {
+    const list = tracks.clipTime || [];
+    for (let i = 1; i < list.length; i++) {
+      const a = list[i - 1];
+      const b = list[i];
+      if (p >= a.at && p <= b.at && a.values.clip && a.values.clip === b.values.clip) {
+        const span = b.at - a.at;
+        const t = span > 1e-6 ? (p - a.at) / span : 1;
+        return { clip: a.values.clip, cycles: a.values.clipTime + (b.values.clipTime - a.values.clipTime) * b.ease(t) };
+      }
+    }
+    return null;
+  }
+
   /* ---------- per-frame update ---------- */
 
   function frame() {
@@ -299,6 +349,7 @@ export function createScroll3DHero(userOptions = {}) {
     updateAnchors();
     for (const key of POSE_KEYS) pose[key] = sample(key, smooth);
     applyPose(time, dt);
+    updateWalker(dt);
     runTweens(time);
     renderer.render(scene, camera);
 
@@ -349,6 +400,49 @@ export function createScroll3DHero(userOptions = {}) {
     }
   }
 
+  // Drive an animated model: measure how fast it travels, pick idle/walk/run, and face the way it goes.
+  function updateWalker(dt) {
+    const anim = current && current.userData.anim;
+    if (!anim) return;
+    const size = root.scale.x;
+    const conf = anim.conf;
+    let speed = 0;
+    let vx = 0;
+    if (walker.last && dt > 1e-4) {
+      if (conf.drive === 'scroll') {
+        const trackHeight = track.getBoundingClientRect().height;
+        vx = (((smooth - walker.lastProgress) / dt) * Math.max(0, trackHeight - view.h)) / view.h; // screens/s
+        speed = Math.abs(vx);
+      } else {
+        vx = (root.position.x - walker.last.x) / dt / size; // body lengths per second
+        speed = Math.hypot(vx, (root.position.y - walker.last.y) / dt / size);
+      }
+    }
+    walker.last = { x: root.position.x, y: root.position.y };
+    walker.lastProgress = smooth;
+    const k = 1 - Math.exp(-dt / 0.15);
+    walker.speed += (speed - walker.speed) * k;
+    walker.vx += (vx - walker.vx) * k;
+    const scrub = sampleClip(smooth);
+    anim.update(dt, walker.speed, reducedMotion.matches, scrub);
+
+    if (conf.face) {
+      const face = { moving: 90, idle: 35, start: 1, ...(conf.face === true ? {} : conf.face) };
+      if (!walker.dir) walker.dir = face.start;
+      if (Math.abs(walker.vx) > conf.walkAbove * 0.5) walker.dir = Math.sign(walker.vx);
+      if (anim.state !== 'idle') walker.moved = true;
+      // with still: 'pose' or 'freeze' it stays turned the way it stopped, so nothing moves at rest
+      const atRest = anim.state === 'idle' && (conf.still === 'idle' || !walker.moved);
+      const yaw = walker.dir * (atRest ? face.idle : face.moving) * DEG;
+      if (walker.snap) {
+        heading.rotation.y = yaw; // a freshly shown model starts already facing the right way
+        walker.snap = false;
+      } else {
+        heading.rotation.y += (yaw - heading.rotation.y) * (1 - Math.exp(-dt * 5));
+      }
+    }
+  }
+
   function tween(duration, ease, apply) {
     return new Promise((resolve) => tweens.push({ start: null, duration, ease, apply, resolve }));
   }
@@ -381,18 +475,29 @@ export function createScroll3DHero(userOptions = {}) {
   async function loadModel(source) {
     const src = typeof source === 'string' ? { url: source } : source || {};
     let object;
+    let clips = src.animations || [];
     if (src.object) {
       object = src.object;
-    } else if (src.url) {
-      const gltf = await getLoader().loadAsync(src.url, (e) => {
-        if (e.total && base.onLoadProgress) base.onLoadProgress(e.loaded / e.total);
-      });
+    } else if (src.url || src.buffer) {
+      const gltf = src.buffer
+        ? await getLoader().parseAsync(src.buffer instanceof ArrayBuffer ? src.buffer : src.buffer.buffer, '')
+        : await getLoader().loadAsync(src.url, (e) => {
+            if (e.total && base.onLoadProgress) base.onLoadProgress(e.loaded / e.total);
+          });
       object = gltf.scene;
+      clips = gltf.animations || [];
     } else {
       object = buildShape(src);
     }
     if (typeof src.prepare === 'function') src.prepare(object);
-    return normalizeObject(object, src.rotate);
+    // skinned meshes are culled by their rest pose; a walking animal must never blink out
+    object.traverse((node) => {
+      if (node.isSkinnedMesh) node.frustumCulled = false;
+    });
+    const holder = normalizeObject(object, src.rotate);
+    if (src.animation && clips.length) holder.userData.anim = createAnimator(object, clips, src.animation);
+    else if (src.animation) console.warn('[scroll-3d-hero] model.animation is set but the model has no animation clips');
+    return holder;
   }
 
   // Swap the displayed object. With a previous model on screen it revolves out and the new one revolves in.
@@ -415,10 +520,14 @@ export function createScroll3DHero(userOptions = {}) {
       }
       if (current) {
         spinner.remove(current);
+        current.userData.anim?.dispose();
         disposeObject(current);
       }
       current = next;
       spinner.add(next);
+      walker.last = null;
+      walker.snap = true;
+      walker.moved = false;
       if (animate) {
         await tween(0.6, easings.easeOut, (k) => {
           swap.scale.setScalar(Math.max(k, 1e-4));
@@ -442,6 +551,7 @@ export function createScroll3DHero(userOptions = {}) {
     if (running) {
       clock.getDelta();
       firstFrame = true;
+      walker.last = null;
       renderer.setAnimationLoop(frame);
     } else {
       renderer.setAnimationLoop(null);
@@ -485,7 +595,10 @@ export function createScroll3DHero(userOptions = {}) {
       `scroll-3d-hero  progress ${f(smooth)} (target ${f(target)})\n` +
       `x ${f(pose.x)}  y ${f(pose.y)}  z ${f(pose.z)}  size ${f(pose.size)}  shadow ${f(pose.shadow)}\n` +
       `rotate [${Math.round(pose.rx)}, ${Math.round(pose.ry)}, ${Math.round(pose.rz)}]\n` +
-      `keyframes at ${frames.map((fr) => f(fr.at)).join(' · ')}`;
+      `keyframes at ${frames.map((fr) => f(fr.at)).join(' · ')}` +
+      (current && current.userData.anim
+        ? `\nanimation ${current.userData.anim.state}${current.userData.anim.state === 'scrub' ? ' ' + current.userData.anim.scrubbing : ''}  speed ${f(walker.speed)}  facing ${walker.dir < 0 ? 'left' : 'right'}`
+        : '');
   }
 
   function destroy() {
@@ -497,6 +610,7 @@ export function createScroll3DHero(userOptions = {}) {
     window.removeEventListener('load', scheduleRefresh);
     reducedMotion.removeEventListener('change', scheduleRefresh);
     mediaQueries.forEach((mq) => mq.removeEventListener('change', scheduleRefresh));
+    current?.userData.anim?.dispose();
     disposeObject(scene);
     envTexture.dispose();
     renderer.dispose();
@@ -521,6 +635,14 @@ export function createScroll3DHero(userOptions = {}) {
     camera,
     renderer,
     setModel,
+    // names of the current model's animation clips
+    get clips() {
+      return current?.userData.anim?.clips || [];
+    },
+    // force a clip (e.g. on click); playClip(null) hands control back to the automatic gait
+    playClip(name) {
+      current?.userData.anim?.play(name);
+    },
     setKeyframes(keyframes) {
       base.keyframes = keyframes;
       refresh();
@@ -550,6 +672,100 @@ export function createScroll3DHero(userOptions = {}) {
   );
   api.ready.catch(() => {});
   return api;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Animation: plays a model's glTF clips and crossfades between idle, walk   */
+/* and run based on how fast the object is travelling.                       */
+
+function createAnimator(root, clips, config) {
+  const conf = { ...ANIMATION_DEFAULTS, ...(typeof config === 'string' ? { idle: config } : config) };
+  const find = (ref) =>
+    ref === null || ref === undefined
+      ? null
+      : typeof ref === 'number'
+        ? clips[ref] || null
+        : THREE.AnimationClip.findByName(clips, ref);
+  const names = clips.map((c) => c.name);
+  const mixer = new THREE.AnimationMixer(root);
+  const actions = {};
+  for (const state of ['idle', 'walk', 'run']) {
+    const clip = find(conf[state]);
+    if (conf[state] !== null && conf[state] !== undefined && !clip) {
+      console.warn(`[scroll-3d-hero] animation clip "${conf[state]}" not found; this model has: ${names.join(', ')}`);
+    }
+    if (clip) actions[state] = mixer.clipAction(clip);
+  }
+  if (!actions.idle) actions.idle = mixer.clipAction(clips[0]);
+
+  let active = null;
+  let state = 'idle';
+  let manual = null;
+  let scrubbing = '';
+  const warned = new Set();
+  const crossTo = (action) => {
+    if (action === active) return;
+    action.reset().setEffectiveTimeScale(1).setEffectiveWeight(1).play();
+    if (active) active.crossFadeTo(action, conf.fade, false);
+    active = action;
+  };
+  crossTo(actions.idle);
+
+  return {
+    conf,
+    clips: names,
+    get state() {
+      return manual ? 'manual' : state;
+    },
+    get scrubbing() {
+      return scrubbing;
+    },
+    update(dt, speed, stayIdle, scrub) {
+      const scrubClip = scrub && !manual ? find(scrub.clip) : null;
+      if (scrub && !scrubClip && !warned.has(scrub.clip)) {
+        warned.add(scrub.clip);
+        console.warn(`[scroll-3d-hero] animation clip "${scrub.clip}" not found; this model has: ${names.join(', ')}`);
+      }
+      if (scrubClip) {
+        // the scrollbar sets the clip's time; mixer time only advances the crossfade weights
+        state = 'scrub';
+        scrubbing = scrub.clip;
+        const action = mixer.clipAction(scrubClip);
+        crossTo(action);
+        action.setEffectiveTimeScale(0);
+        action.time = (((scrub.cycles % 1) + 1) % 1) * scrubClip.duration;
+      } else if (manual) {
+        crossTo(manual);
+      } else {
+        // leaving a state takes a little less speed than entering it, so the gait doesn't flicker
+        const walkOn = conf.walkAbove * (state === 'idle' ? 1 : 0.7);
+        const runOn = conf.runAbove * (state === 'run' ? 0.8 : 1);
+        state = stayIdle ? 'idle' : actions.run && speed > runOn ? 'run' : actions.walk && speed > walkOn ? 'walk' : 'idle';
+        if (state === 'idle' && conf.still === 'freeze' && active) {
+          active.setEffectiveTimeScale(0); // hold the exact pose it stopped in
+        } else {
+          crossTo(actions[state]);
+          if (state === 'idle' && conf.still === 'pose') active.setEffectiveTimeScale(0); // first frame, held
+        }
+        if (state === 'walk') active.setEffectiveTimeScale(Math.min(1.8, Math.max(0.5, speed / conf.walkSpeed)));
+        if (state === 'run') active.setEffectiveTimeScale(Math.min(1.8, Math.max(0.6, speed / conf.runSpeed)));
+      }
+      mixer.update(dt);
+    },
+    play(name) {
+      if (name === null || name === undefined) {
+        manual = null;
+        return;
+      }
+      const clip = find(name);
+      if (!clip) console.warn(`[scroll-3d-hero] animation clip "${name}" not found; this model has: ${names.join(', ')}`);
+      else manual = mixer.clipAction(clip);
+    },
+    dispose() {
+      mixer.stopAllAction();
+      mixer.uncacheRoot(root);
+    },
+  };
 }
 
 /* ------------------------------------------------------------------------ */

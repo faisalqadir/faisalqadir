@@ -107,6 +107,61 @@ for "spins faster while scrolling" (`rotate: [62, 720, 0]` at the end).
 { at: 0.86, size: 0 },                           // then vanishes
 ```
 
+### An animal walking through the page
+
+For a rigged model with `animation: { idle, walk, run }` (see SKILL.md and `template-animal.html`):
+
+```js
+keyframes: [
+  { at: 0, x: 0.55, y: -0.62, size: 0.34, rotate: [8, 0, 0], shadow: 1 }, // stands in the hero
+  { at: '#trail', x: 0.2 },        // starts strolling as the next section arrives
+  { at: 0.45, x: -0.55 },          // walks to the left edge
+  { at: 0.55, x: -0.55 },          // the same x on two keyframes = it stops and looks around
+  { at: 0.85, x: 0.5 },            // more distance over a similar stretch of scroll = it runs
+  { at: 1, anchor: '#den-slot', fit: 0.95 },   // trots into a card and stands there
+]
+```
+
+- **A ground line.** Keep `y` constant while it walks (around -0.6 to -0.8), so it reads as walking
+  on a floor. Change `y` only where it should climb or jump. Give the shadow
+  `offset: 0.25`–`0.3` so it sits under the feet.
+- **Tilt, don't turn.** Use `rotate` only for a slight x tilt (8–12°) that shows a little of its back.
+  The runtime turns it left or right to face where it's going (`face`).
+- **Pauses are free.** Two keyframes with the same `x` make it stop, idle and look around while the
+  reader takes in that section.
+- **Gait follows ground speed,** in body lengths per second. A big character on a narrow phone screen
+  covers little ground and only walks; make it smaller on phones with `responsive`.
+- **Keep its lane clear.** Put section copy in the top two-thirds of the screen, away from its path.
+
+### A leap that follows the scroll (stops mid-air when the visitor stops)
+
+From `template-animal.html`: the fox stands at the upper right, then leaps diagonally down to the
+lower left. The position, pitch and leg motion all follow the scrollbar.
+
+```js
+animation: { idle: 'Survey', walk: 'Walk', run: 'Run', still: 'pose' }, // no idle fidgeting at rest
+keyframes: [
+  { at: 0, x: 0.5, y: 0.22, size: 0.34, rotate: [8, 0, 0], shadow: 1 },
+  { at: 0.18, x: 0.5, y: 0.22, rz: 0, shadow: 1 },          // about to jump
+  { at: 0.18, clip: 'Run', clipTime: 0 },                   // start scrubbing the run cycle
+  { at: 0.23, shadow: 0 },                                  // off the ground
+  { at: 0.24, rz: -16 },                                    // take-off, nose up (facing left)
+  { at: 0.28, x: 0.2, y: 0.32, size: 0.4, ease: 'easeOut' }, // top of the arc
+  { at: 0.36, rz: 22 },                                     // diving, nose down
+  { at: 0.42, x: -0.5, y: -0.62, size: 0.34, rz: 6, shadow: 1, ease: 'easeIn' }, // lands
+  { at: 0.42, clip: 'Run', clipTime: 1, ease: 'linear' },   // one bound, scrubbed linearly
+  { at: 0.46, rz: 0 },
+  { at: 0.58, x: -0.5, y: -0.62 },                          // stands still
+]
+```
+
+- Two keyframes can share an `at`: one moves the body with its own easing, while the other scrubs
+  the clip with `linear` so the legs don't speed up and slow down.
+- `easeOut` into the apex and `easeIn` into the landing give the arc a feel of gravity.
+- Fade the shadow out while airborne and back in on landing.
+- A clip-less model (or no jump clip) still works: scrub the run cycle, or skip `clip` and let the
+  arc and pitch carry the jump.
+
 ### Product switcher in the landing card
 
 ```js

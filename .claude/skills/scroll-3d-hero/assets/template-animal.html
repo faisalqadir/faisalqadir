@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Walking fox · scroll-3d-hero</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;800;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+<!-- three.js from a CDN via an import map; pin the version you test with -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+
+<style>
+  :root {
+    --bg: #eef0ea;
+    --ink: #17201b;
+    --muted: #59625c;
+    --line: #cfd4cb;
+    --card: #e1e6dc;
+    --accent: #c4622d;
+    --display: "Archivo", "Arial Black", Impact, system-ui, sans-serif;
+    --body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { overflow-x: clip; }  /* clip, not hidden: hidden would stop position: sticky */
+  body { background: var(--bg); color: var(--ink); font: 400 16px/1.55 var(--body); -webkit-font-smoothing: antialiased; }
+  a { color: inherit; }
+
+  /* ---------- scroll-3d-hero: required layout ---------- */
+  .s3h { position: relative; }
+  .s3h-layer { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+  .s3h-stage { position: sticky; top: 0; height: 100vh; overflow: hidden; }
+  .s3h-canvas { display: block; width: 100%; height: 100%; opacity: 0; transition: opacity .9s ease; }
+  .s3h-stage.is-ready .s3h-canvas { opacity: 1; }
+  /* ------------------------------------------------------ */
+
+  .wrap { width: min(1320px, 100% - 48px); margin-inline: auto; }
+  .eyebrow { display: block; margin-bottom: 18px; font-weight: 600; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+  h1, h2 { font-family: var(--display); font-weight: 900; text-transform: uppercase; letter-spacing: -.02em; }
+
+  /* hero: the fox stands bottom right, looking towards the headline */
+  .hero { min-height: 100vh; padding: 96px 0 0; }
+  .hero h1 { font-size: clamp(48px, 7vw, 120px); line-height: .9; max-width: 11ch; }
+  .hero p { margin-top: 28px; max-width: 40ch; font-size: 18px; color: var(--muted); }
+
+  /* trail: three captions across the top while the fox crosses the bottom */
+  .trail { min-height: 200vh; padding: 12vh 0; display: grid; grid-template-rows: repeat(2, 1fr); }
+  .trail article { max-width: 30ch; }
+  .trail article:nth-child(2) { justify-self: end; text-align: right; }
+  .trail h2 { font-size: clamp(32px, 4.4vw, 72px); line-height: .92; }
+  .trail p { margin-top: 14px; color: var(--muted); font-size: 17px; }
+
+  /* den: the fox ends up standing in this card */
+  .den { min-height: 100vh; display: grid; grid-template-columns: 1fr minmax(300px, 520px); gap: 6vw; align-items: center; padding: 80px 0; }
+  .den h2 { font-size: clamp(36px, 4.6vw, 76px); line-height: .92; }
+  .den p { margin-top: 20px; max-width: 44ch; color: var(--muted); font-size: 17px; }
+  .den pre { margin-top: 24px; padding: 16px 18px; background: var(--card); border-left: 4px solid var(--accent); font: 13px/1.6 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; }
+  .card { height: min(60vh, 520px); border: 2px solid var(--ink); background: var(--card); display: grid; grid-template-rows: auto 1fr; }
+  .card-top { display: flex; justify-content: space-between; padding: 14px 18px; border-bottom: 2px solid var(--ink); font-weight: 600; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; }
+  .card-slot { margin: 8%; }
+
+  footer { padding: 48px 0 56px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+  footer p + p { margin-top: 6px; }
+
+  @media (max-width: 900px) {
+    .den { grid-template-columns: 1fr; gap: 28px; }
+    .card { height: 44vh; }
+  }
+  @media (max-width: 767px) {
+    .hero { padding-top: 72px; }
+    .trail { min-height: 180vh; }
+    .trail article:nth-child(2) { justify-self: start; text-align: left; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <div class="s3h">
+    <div class="s3h-layer" aria-hidden="true"><div class="s3h-stage"></div></div>
+
+    <section class="hero wrap">
+      <span class="eyebrow">Animated 3D characters</span>
+      <h1>A fox that moves as you scroll</h1>
+      <p>Scroll down. It leaps when you scroll, runs when you hurry, and stands perfectly still when you stop.</p>
+    </section>
+
+    <section class="trail wrap" id="trail">
+      <article>
+        <span class="eyebrow">Leap</span>
+        <h2>The leap follows your scroll</h2>
+        <p>The jump is tied to the scrollbar, not a timer. Stop halfway and the fox hangs in mid-air until you carry on.</p>
+      </article>
+      <article id="run">
+        <span class="eyebrow">Run</span>
+        <h2>Scroll faster and it breaks into a run</h2>
+        <p>Above a set speed the clip crossfades to a run. Stop scrolling and it eases back to standing.</p>
+      </article>
+    </section>
+
+    <section class="den wrap" id="den">
+      <div>
+        <span class="eyebrow">Your animal here</span>
+        <h2>Swap in any rigged model</h2>
+        <p>Any glTF model with walk and idle clips works the same way. Point the runtime at your file and name its clips.</p>
+        <pre>model: {
+  url: 'snow-leopard.glb',
+  animation: { idle: 'Idle', walk: 'Walk', run: 'Run' },
+}</pre>
+      </div>
+      <div class="card">
+        <div class="card-top"><span>The den</span><span>Rest stop</span></div>
+        <div class="card-slot" id="den-slot"></div>
+      </div>
+    </section>
+  </div>
+
+  <footer>
+    <div class="wrap">
+      <p>Demo page for the scroll-3d-hero skill.</p>
+      <p>Fox model by PixelMannen (CC0). Rigging and animation by tomkranis (CC BY 4.0). glTF conversion by @AsoboStudio and @scurest (CC BY 4.0). From the Khronos glTF Sample Assets.</p>
+    </div>
+  </footer>
+</main>
+
+<script type="module">
+  import { createScroll3DHero } from './scroll-3d-hero.js';
+
+  // Credit the authors wherever you use this model (see the footer).
+  const FOX = 'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Assets@edc7c9e67c639d230715049ee31f9a96a6babbbe/Models/Fox/glTF-Binary/Fox.glb';
+
+  createScroll3DHero({
+    track: '.s3h',
+    stage: '.s3h-stage',
+    model: {
+      url: FOX,
+      animation: {
+        idle: 'Survey', walk: 'Walk', run: 'Run',
+        face: { moving: 90, idle: 35, start: -1 }, // starts looking left, towards the headline
+        still: 'pose', // at rest it holds a standing pose: no movement until you scroll
+      },
+    },
+
+    // Upper right in the hero, a diagonal leap down to the lower left, a still pause, a run back,
+    // then into the den. Between the two keyframes that set clip/clipTime the Run clip follows the
+    // scrollbar, so stopping mid-leap freezes the fox mid-air.
+    keyframes: [
+      { at: 0, x: 0.5, y: 0.22, size: 0.34, rotate: [8, 0, 0], shadow: 1 },
+      { at: 0.18, x: 0.5, y: 0.22, rz: 0, shadow: 1 },                 // standing, about to jump
+      { at: 0.18, clip: 'Run', clipTime: 0 },
+      { at: 0.23, shadow: 0 },                                          // leaves the ground
+      { at: 0.24, rz: -16 },                                            // take-off: nose up
+      { at: 0.28, x: 0.2, y: 0.32, size: 0.4, ease: 'easeOut' },        // top of the arc, a little closer
+      { at: 0.36, rz: 22 },                                             // diving: nose down
+      { at: 0.38, shadow: 0 },
+      { at: 0.42, x: -0.5, y: -0.62, size: 0.34, rz: 6, shadow: 1, ease: 'easeIn' }, // lands lower left
+      { at: 0.42, clip: 'Run', clipTime: 1, ease: 'linear' },           // one bound of the run cycle
+      { at: 0.46, rz: 0 },                                              // settles level
+      { at: 0.58, x: -0.5, y: -0.62 },                                  // stands still while you read
+      { at: 0.85, x: 0.5, y: -0.55 },                                   // runs back across
+      { at: 1, anchor: '#den-slot', fit: 0.95, rotate: [8, 0, 0] },     // into the den
+    ],
+    responsive: {
+      '(max-width: 767px)': {
+        keyframes: [
+          // smaller on phones; it starts below the copy and leaps to the lower left
+          { at: 0, x: 0.4, y: -0.3, size: 0.4, rotate: [8, 0, 0], shadow: 1 },
+          { at: 0.18, x: 0.4, y: -0.3, rz: 0, shadow: 1 },
+          { at: 0.18, clip: 'Run', clipTime: 0 },
+          { at: 0.23, shadow: 0 },
+          { at: 0.24, rz: -16 },
+          { at: 0.28, x: 0.15, y: -0.18, size: 0.46, ease: 'easeOut' },
+          { at: 0.36, rz: 22 },
+          { at: 0.38, shadow: 0 },
+          { at: 0.42, x: -0.6, y: -0.8, size: 0.4, rz: 6, shadow: 1, ease: 'easeIn' },
+          { at: 0.42, clip: 'Run', clipTime: 1, ease: 'linear' },
+          { at: 0.46, rz: 0 },
+          { at: 0.58, x: -0.6, y: -0.8 },
+          { at: 0.85, x: 0.6, y: -0.8 },
+          { at: 1, anchor: '#den-slot', fit: 0.95, rotate: [8, 0, 0] },
+        ],
+      },
+    },
+
+    shadow: { opacity: 0.3, width: 1, offset: 0.27 }, // feet sit about a quarter of its length below centre
+    damping: 8, // comes to rest quickly once you stop scrolling
+  });
+</script>
+</body>
+</html>

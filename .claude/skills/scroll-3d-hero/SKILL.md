@@ -1,6 +1,6 @@
 ---
 name: scroll-3d-hero
-description: Build scroll-driven 3D product heroes and dot-matrix footer wordmarks for websites. The 3D part puts a product (plate, bowl, cup, bottle, shoe, any GLB model) in the hero, revolves and flips it as the visitor scrolls, carries it through the next sections and lands it in a product card, like the plate on kanaknaturals.com. The wordmark part draws a brand name or logo in dots that fly in when the footer appears and scatter away from the cursor, like the footer of unitedcarriers.com. Ships drop-in runtimes, a working template page and a screenshot checker. Use this whenever someone wants a 3D or WebGL hero, a product that rotates, spins, revolves or flips on scroll, a scroll-linked 3D animation, Three.js on a landing page, a dotted, particle or halftone logo or text effect, an interactive footer wordmark, or an awwwards-style effect copied from a site they saw, even if they never say "Three.js" or "canvas".
+description: Build scroll-driven 3D heroes, walking 3D characters and dot-matrix footer wordmarks for websites. A product (plate, bowl, cup, bottle, shoe, any GLB) floats in the hero, revolves and flips as the visitor scrolls, and lands in a product card, like the plate on kanaknaturals.com. An animated animal or mascot (fox, snow leopard, any rigged GLB) walks, runs and pauses through the page in step with the scroll. A brand name or logo drawn in dots flies in at the footer and scatters from the cursor, like unitedcarriers.com. Ships drop-in runtimes, templates and a screenshot checker. Use this whenever someone wants a 3D or WebGL hero, a product that rotates, spins or flips on scroll, an animal or character moving through the site, a scroll-linked 3D animation, Three.js on a landing page, a dotted, particle or halftone logo, an interactive footer wordmark, or an awwwards-style effect copied from a site they saw, even if they never say "Three.js" or "canvas".
 ---
 
 # Scroll 3D hero
@@ -27,6 +27,7 @@ How it works, in four parts:
 | --- | --- |
 | `assets/scroll-3d-hero.js` | The runtime. Copy it into the project unchanged. Vanilla Three.js, no build step. |
 | `assets/template.html` | A complete working page (hero → statement → product card). Start from it. |
+| `assets/template-animal.html` | An animated-animal page: a fox leaps diagonally across the page as you scroll (scrubbed, so it freezes mid-air if you stop), stands still, runs and settles in a card. Start from it for animals and mascots. |
 | `scripts/preview.mjs` | Screenshots the page at several scroll positions on desktop and mobile. |
 | `references/choreography.md` | Keyframe recipes, plus a breakdown of how kanaknaturals.com does it. Read it when designing the motion. |
 | `references/models.md` | Getting, exporting and compressing a real product model. Read it when the user has or needs a GLB. |
@@ -166,6 +167,60 @@ warnings. Open the PNGs and check:
 pose and the resolved keyframe positions, and outlines anchors.
 
 If Playwright is missing: `npm i -D playwright && npx playwright install chromium`.
+
+## Animated characters: animals, mascots, people
+
+A rigged model with animation clips (walk, run, idle) can move through the page instead of a product.
+The runtime plays the clips and works out the gait from how fast the character travels across the
+screen: idle when still, walk when slow, run when fast. Clip speed follows the motion so the feet keep
+up with the ground, and the character turns to face the way it's going. Start from
+`assets/template-animal.html`, which uses the Khronos sample fox.
+
+```js
+createScroll3DHero({
+  model: {
+    url: '/models/snow-leopard.glb',
+    animation: { idle: 'Idle', walk: 'Walk', run: 'Run', face: { moving: 90, idle: 35, start: -1 } },
+  },
+  keyframes: [
+    { at: 0, x: 0.55, y: -0.62, size: 0.34, rotate: [8, 0, 0], shadow: 1 },  // standing in the hero
+    { at: 0.45, x: -0.55 },                                                  // walks left
+    { at: 0.55, x: -0.55 },                                                  // same x = it stops and idles
+    { at: 0.85, x: 0.5 },                                                    // more distance per scroll = it runs
+    { at: 1, anchor: '#den-slot', fit: 0.95 },                               // settles in a card
+  ],
+  shadow: { opacity: 0.3, width: 1, offset: 0.27 },  // feet sit about a quarter of its length below centre
+});
+```
+
+- **The model** must be rigged and contain its clips, and should face the camera (+Z) at rest; fix it
+  with `model.rotate` if it doesn't. `hero.clips` lists the clip names it found, and a missing name is
+  reported in the console with the available ones. Getting a model: see `references/models.md`.
+- **Choreography:** keep `y` constant along a "ground line" near the bottom of the screen, and use
+  `rotate` only for a slight tilt (8–12° on x); the runtime handles facing. Repeat a keyframe's `x` to
+  make it stop, and cover more distance per stretch of scroll to make it run. Recipes are in
+  `references/choreography.md`.
+- **Tuning the gait:** `walkAbove`, `runAbove` set the switch points; `walkSpeed`, `runSpeed` match
+  the clip to the ground. Speeds are in body lengths per second. On phones, use a smaller `size`, or
+  the character crosses the screen in less than one body length and barely walks.
+- **Scroll-scrubbed moves (a leap, a jump, a turn):** give two keyframes the same `clip` and a
+  `clipTime` in cycles, e.g. `{ at: 0.18, clip: 'Run', clipTime: 0 }` and
+  `{ at: 0.42, clip: 'Run', clipTime: 1, ease: 'linear' }`. Between them the clip follows the
+  scrollbar instead of the clock, so stopping mid-leap freezes the character mid-air. Pair it with an
+  arc in `x`/`y` and a nose-up then nose-down `rz`. For a character facing left, negative `rz` lifts
+  the nose. If the model has no jump clip, a run cycle's bound reads as a leap.
+- **Stillness:** `still: 'pose'` holds the idle clip's first frame, so nothing moves once the visitor
+  stops scrolling. The default `'idle'` plays the idle loop. `'freeze'` keeps the exact pose it
+  stopped in.
+- **Other controls:** `drive: 'scroll'` ties the gait to scroll speed instead, for a character that
+  walks on the spot while the page moves past. `hero.playClip('Jump')` forces a clip, and
+  `playClip(null)` hands control back. `animation: 'Walk'` simply loops one clip.
+- Idle wobble is off by default for animated models, and reduced-motion visitors see the idle clip only.
+- **Embedding the model:** to put the GLB inside the page (a single-file demo, or a host that blocks
+  fetching files), pass the file's bytes with `model: { buffer: arrayBuffer }`.
+- **A video instead:** if the character only ever walks across side-on, a looping video with a
+  transparent background can be cheaper (WebM VP9 with alpha, plus HEVC with alpha for Safari).
+  Choose 3D when it needs to turn, face the viewer or land in perspective.
 
 ## Dot-matrix footer wordmark
 

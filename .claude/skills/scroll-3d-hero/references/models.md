@@ -93,3 +93,47 @@ const cup = new THREE.Mesh(
 );
 createScroll3DHero({ model: { object: cup }, /* … */ });
 ```
+
+## Animated characters (animals, mascots, people)
+
+A character that walks through the page needs a **rigged** model, one with a skeleton, that already
+contains its **animation clips**. The runtime plays the clips (see "Animated characters" in SKILL.md);
+it cannot invent a walk for a static model.
+
+**Clips to ask for or check:** an idle (standing, breathing, looking around), a walk cycle and,
+ideally, a run cycle, all looping cleanly. Extras such as sit, jump or turn can be triggered with
+`hero.playClip()`. Clips must loop "in place", with the character not drifting forward inside the
+clip, because the page provides the travel. Most game-ready assets loop in place already.
+
+**Where to get one:**
+- **Marketplaces** (Sketchfab, CGTrader, TurboSquid, Fab). Search for e.g. "snow leopard rigged
+  animated" and check that the listing includes walk/run/idle animations, a glTF/GLB or FBX download,
+  and a licence that allows commercial web use. Free CC-BY models are fine with a credit on the page.
+- **Commission a 3D artist** for a specific animal or a brand mascot. Ask for a GLB under ~5 MB with
+  idle, walk and run loops, facing +Z, Y up.
+- **Auto-riggers** such as Mixamo only handle two-legged humanoids. They're great for people and
+  humanoid mascots, but not for four-legged animals.
+- **AI image-to-3D** gives a static mesh. A quadruped still needs rigging and animating afterwards,
+  so it's a starting point, not a finished character.
+- **The Khronos sample fox** (used by `template-animal.html`) is free to use with credit: model by
+  PixelMannen (CC0), rigging and animation by tomkranis (CC BY 4.0), glTF conversion by @AsoboStudio
+  and @scurest (CC BY 4.0). It's handy as a stand-in while the real model is being made.
+
+**Exporting from Blender with animations:**
+- Export as glTF Binary (.glb) with **Animation** enabled; each action becomes a clip named after
+  the action, so name them `Idle`, `Walk`, `Run`.
+- Use "NLA strips" or "Actions" export mode so every action is included, not only the active one.
+- Apply scale and rotation on the armature and mesh before exporting, so the clips and mesh agree.
+- FBX from a marketplace: import into Blender, check the clips play, then export GLB as above.
+
+**Keeping it light:** animated models run larger, so aim for 1–5 MB.
+
+```bash
+npx @gltf-transform/cli optimize animal.glb public/models/animal.glb \
+  --compress meshopt --texture-compress webp --texture-size 1024 --simplify false
+```
+
+`optimize` keeps the clips and resamples their keyframes. Meshopt compresses animation data better
+than Draco, and `--simplify false` avoids distorting skinned meshes. After compressing, check that the
+clips still play: the runtime logs a missing clip together with the names it did find, and
+`hero.clips` lists them.
