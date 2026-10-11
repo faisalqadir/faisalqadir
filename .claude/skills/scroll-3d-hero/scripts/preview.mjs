@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Screenshot a scroll-3d-hero page at several scroll positions so the choreography can be checked
-// without opening a browser by hand.
+// without opening a browser by hand. If the page has a dot-matrix wordmark (dot-wordmark.js), it is
+// scrolled into view and captured once its dots settle, as <viewport>-wordmark.png.
 //
 //   node preview.mjs <page.html | http://localhost:3000/> [options]
 //
@@ -13,7 +14,7 @@
 //   --after-ready <js>   expression evaluated after the hero is ready, before screenshots
 //
 // A local .html file is served over http (ES modules do not load from file://). Exits non-zero
-// if the hero never becomes ready or the page logs errors.
+// if the hero never becomes ready, the page logs errors, or it has neither a hero nor a wordmark.
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -70,25 +71,28 @@ for (const vp of viewports) {
   const page = await context.newPage();
   const problems = [];
   page.on('console', (m) => {
-    if (m.type() === 'error' || (m.type() === 'warning' && m.text().includes('scroll-3d-hero'))) problems.push(`${m.type()}: ${m.text()}`);
+    if (m.type() === 'error' || (m.type() === 'warning' && /scroll-3d-hero|dot-wordmark/.test(m.text()))) problems.push(`${m.type()}: ${m.text()}`);
   });
   page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
 
   await page.goto(pageUrl, { waitUntil: 'load' });
-  try {
-    await page.waitForSelector(`${stageSel}[data-s3h-ready="true"]`, { state: 'attached', timeout: 45000 });
-  } catch {
-    console.error(`[${vp.name}] the hero never became ready (no data-s3h-ready on ${stageSel}).`);
-    problems.forEach((p) => console.error(`  ${p}`));
-    failed = true;
-    await page.screenshot({ path: path.join(outDir, `${vp.name}-not-ready.png`) });
-    await context.close();
-    continue;
+  const hasHero = await page.evaluate((sel) => !!document.querySelector(sel), stageSel);
+  if (hasHero) {
+    try {
+      await page.waitForSelector(`${stageSel}[data-s3h-ready="true"]`, { state: 'attached', timeout: 45000 });
+    } catch {
+      console.error(`[${vp.name}] the hero never became ready (no data-s3h-ready on ${stageSel}).`);
+      problems.forEach((p) => console.error(`  ${p}`));
+      failed = true;
+      await page.screenshot({ path: path.join(outDir, `${vp.name}-not-ready.png`) });
+      await context.close();
+      continue;
+    }
   }
   if (args['after-ready']) await page.evaluate(args['after-ready']);
   await page.addStyleTag({ content: 'html{scroll-behavior:auto!important}' });
 
-  for (const stop of stops) {
+  for (const stop of hasHero ? stops : []) {
     await page.evaluate(
       ({ trackSel, stageSel, stop }) => {
         const track = document.querySelector(trackSel);
@@ -112,6 +116,24 @@ for (const vp of viewports) {
     const progress = await page.evaluate((sel) => getComputedStyle(document.querySelector(sel)).getPropertyValue('--s3h-progress'), trackSel);
     console.log(`[${vp.name}] stop ${stop} → progress ${progress.trim() || '?'} → ${file}`);
   }
+
+  const hasWordmark = await page.evaluate(() => !!document.querySelector('[data-dot-wordmark]'));
+  if (hasWordmark) {
+    await page.evaluate(() => {
+      const b = document.querySelector('[data-dot-wordmark]').getBoundingClientRect();
+      window.scrollTo(0, window.scrollY + b.bottom - window.innerHeight + 24);
+    });
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    try {
+      await page.waitForFunction(() => document.querySelector('[data-dot-wordmark]').dataset.settled === 'true', null, { timeout: 30000 });
+    } catch {
+      problems.push('note: the wordmark had not settled after 30s (slow software rendering?)');
+    }
+    const file = path.join(outDir, `${vp.name}-wordmark.png`);
+    await page.screenshot({ path: file });
+    console.log(`[${vp.name}] wordmark → ${file}`);
+  }
+  if (!hasHero && !hasWordmark) problems.push(`error: found neither a hero stage (${stageSel}) nor a dot wordmark`);
   if (problems.length) {
     console.log(`[${vp.name}] console problems:`);
     problems.forEach((p) => console.log(`  ${p}`));

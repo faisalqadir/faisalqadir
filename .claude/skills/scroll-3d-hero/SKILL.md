@@ -1,6 +1,6 @@
 ---
 name: scroll-3d-hero
-description: Build a scroll-driven 3D hero for a website, where a product (plate, bowl, cup, bottle, shoe, any GLB model) floats in the hero, revolves and flips as the visitor scrolls, travels through the next sections and lands in a product card, like the plate on kanaknaturals.com. Ships a drop-in Three.js runtime, a working template page and a screenshot checker. Use this whenever someone wants a 3D or WebGL hero, a product that rotates/spins/revolves/flips on scroll, a scroll-linked 3D animation, Three.js on a landing page, or asks to recreate an awwwards-style 3D scroll effect from a site they saw, even if they never say "Three.js".
+description: Build scroll-driven 3D product heroes and dot-matrix footer wordmarks for websites. The 3D part puts a product (plate, bowl, cup, bottle, shoe, any GLB model) in the hero, revolves and flips it as the visitor scrolls, carries it through the next sections and lands it in a product card, like the plate on kanaknaturals.com. The wordmark part draws a brand name or logo in dots that fly in when the footer appears and scatter away from the cursor, like the footer of unitedcarriers.com. Ships drop-in runtimes, a working template page and a screenshot checker. Use this whenever someone wants a 3D or WebGL hero, a product that rotates, spins, revolves or flips on scroll, a scroll-linked 3D animation, Three.js on a landing page, a dotted, particle or halftone logo or text effect, an interactive footer wordmark, or an awwwards-style effect copied from a site they saw, even if they never say "Three.js" or "canvas".
 ---
 
 # Scroll 3D hero
@@ -31,6 +31,8 @@ How it works, in four parts:
 | `references/choreography.md` | Keyframe recipes, plus a breakdown of how kanaknaturals.com does it. Read it when designing the motion. |
 | `references/models.md` | Getting, exporting and compressing a real product model. Read it when the user has or needs a GLB. |
 | `references/frameworks.md` | React/Next.js, Vue, Svelte, Astro, Vite, WordPress/Webflow/Shopify setup. Read it for anything but plain HTML. |
+| `assets/dot-wordmark.js` | Dot-matrix footer wordmark: text or a logo drawn in dots that fly in and scatter away from the pointer. No dependencies. |
+| `references/dot-wordmark.md` | Wordmark setup, options, logo mode, tuning, and how unitedcarriers.com does it. Read it before adding a wordmark. |
 
 ## Workflow
 
@@ -150,8 +152,10 @@ node <skill>/scripts/preview.mjs path/to/page.html --out /tmp/s3h --stops 0,0.25
 ```
 
 The script serves local files over http, waits until the hero is ready, scrolls to each stop, waits for
-the object to settle and writes `desktop-0.png`, `mobile-0_5.png` and so on. It exits non-zero on page
-errors or `[scroll-3d-hero]` warnings. Open the PNGs and check:
+the object to settle and writes `desktop-0.png`, `mobile-0_5.png` and so on. If the page has a dot
+wordmark, it also scrolls to it and writes `desktop-wordmark.png` once the dots settle; pages with only
+a wordmark work too. It exits non-zero on page errors or `[scroll-3d-hero]` / `[dot-wordmark]`
+warnings. Open the PNGs and check:
 
 - The object never covers the headline, the main button or the copy at the moment the reader needs it.
 - Mid-scroll frames show it actually revolving, not just shrinking.
@@ -162,6 +166,37 @@ errors or `[scroll-3d-hero]` warnings. Open the PNGs and check:
 pose and the resolved keyframe positions, and outlines anchors.
 
 If Playwright is missing: `npm i -D playwright && npx playwright install chromium`.
+
+## Dot-matrix footer wordmark
+
+A companion effect for the bottom of the page. The brand name, or a logo image, is drawn in small dots.
+They fly in when the footer scrolls into view and scatter away from the pointer or a finger, then spring
+back. Use it whenever someone asks for a dotted, particle or halftone logo, or an interactive footer
+wordmark like unitedcarriers.com. It doesn't need the 3D hero; each works without the other.
+
+```html
+<canvas id="wordmark" class="dot-wordmark" aria-label="Acme Naturals"></canvas>
+<script type="module">
+  import { createDotWordmark } from './dot-wordmark.js';
+  createDotWordmark('#wordmark', { text: 'ACME NATURALS' });   // or { image: '/logo.svg' }
+</script>
+```
+
+```css
+.dot-wordmark { display: block; width: 100%; height: 9vw; color: var(--dots); pointer-events: none; }
+```
+
+- Copy `assets/dot-wordmark.js` next to the page and put the canvas last on the page, below the legal
+  links. The template's footer shows the full layout.
+- The dot colour is the canvas's CSS `color`. Use a mid-tone token at about 40% contrast with the
+  background, and set a dark-theme value too.
+- Load the font instance it draws with: Archivo 800 at expanded width by default, so the Google Fonts
+  URL needs `Archivo:wdth,wght@125,800`.
+- One line fills the width on desktop; on phones the words stack, each filling the width.
+- It respects reduced-motion settings (dots start in place) and stops drawing once the dots are at rest.
+
+Read `references/dot-wordmark.md` for every option, logo images (CORS, `sample: 'dark'` for logos with
+white cut-outs), tuning and pitfalls.
 
 ## Options
 

@@ -18,6 +18,12 @@
       "prompt": "the 3d bottle on our webflow site doesn't stay pinned when I scroll, it just scrolls away with the page. we used this scroll-3d-hero thing. help",
       "expected_output": "Diagnoses overflow hidden on an ancestor (Webflow page wrapper/body) breaking position: sticky, recommends overflow: clip, mentions the runtime's console warning and checks stage CSS.",
       "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "at the bottom of unitedcarriers.com the company name is made of little grey dots that fly in and move away from the mouse. put the same thing in the footer of my site (site/index.html) but with our name, NORTHWIND FREIGHT. it has a dark mode too",
+      "expected_output": "dot-wordmark.js copied in, canvas with aria-label in the footer, --dots colour token for light and dark, Archivo expanded font instance loaded, separate module script calling createDotWordmark with the text, preview wordmark screenshot checked on desktop and mobile.",
+      "files": []
     }
   ]
 }
