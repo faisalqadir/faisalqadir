@@ -1,0 +1,1290 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"></head><body><title>Scroll 3D Hero</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100,500;100,800;100,900;125,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #eee8dc;
+    --ink: #1c1b18;
+    --muted: #5e594f;
+    --card: #e2d9c6;
+    --green: #3d6a39;
+    --orange: #e5722d;
+    --line: #d3cab8;
+    --dots: #a1998a;
+    --display: "Archivo", "Arial Black", Impact, system-ui, sans-serif;
+    --body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #1a1915; --ink: #eee7d9; --muted: #a8a193; --card: #2a2721; --green: #8dbb7d; --orange: #ef8a4c; --line: #3a362e; --dots: #6f695d; color-scheme: dark; } }
+  :root[data-theme="dark"] { --bg: #1a1915; --ink: #eee7d9; --muted: #a8a193; --card: #2a2721; --green: #8dbb7d; --orange: #ef8a4c; --line: #3a362e; --dots: #6f695d; color-scheme: dark; }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  /* clip, not hidden: overflow hidden on an ancestor stops position: sticky from pinning */
+  html { overflow-x: clip; }
+  body { background: var(--bg); color: var(--ink); font: 400 16px/1.55 var(--body); -webkit-font-smoothing: antialiased; }
+  a { color: inherit; text-decoration: none; }
+
+  /* ---------- scroll-3d-hero: required layout ---------- */
+  .s3h { position: relative; }                       /* track: its scroll range drives the animation */
+  .s3h-layer { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+  .s3h-stage { position: sticky; top: 0; height: 100vh; overflow: hidden; }
+  .s3h-canvas { display: block; width: 100%; height: 100%; opacity: 0; transition: opacity .9s ease; }
+  .s3h-stage.is-ready .s3h-canvas { opacity: 1; }
+  .s3h-poster { position: absolute; right: 6%; bottom: 8%; width: min(46vw, 620px); transition: opacity .6s ease; }
+  .s3h-stage.is-ready .s3h-poster { opacity: 0; }
+  /* ------------------------------------------------------ */
+
+  .wrap { width: min(1320px, 100% - 48px); margin-inline: auto; }
+
+  header { position: fixed; inset: 0 0 auto; z-index: 10; padding-top: env(safe-area-inset-top, 0px); }
+  nav { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 22px 0; }
+  .logo { font: 900 22px/1 var(--display); letter-spacing: -.02em; text-transform: uppercase; }
+  .logo span { color: var(--green); }
+  .links { display: flex; gap: 28px; font-weight: 500; font-size: 15px; }
+  .links a:hover { color: var(--green); }
+  .btn { display: inline-flex; align-items: center; gap: 10px; padding: 14px 22px; border: 2px solid var(--ink); font: 600 14px/1 var(--body); letter-spacing: .06em; text-transform: uppercase; background: transparent; color: var(--ink); cursor: pointer; transition: background .2s, color .2s; }
+  .btn:hover { background: var(--ink); color: var(--bg); }
+  .btn.solid { background: var(--ink); color: var(--bg); }
+  .btn.solid:hover { background: var(--green); border-color: var(--green); }
+
+  /* hero */
+  .hero { min-height: 100vh; display: grid; align-content: end; padding: 120px 0 72px; }
+  .hero-copy { max-width: 760px; opacity: calc(1 - var(--s3h-progress, 0) * 3); }
+  .eyebrow { display: inline-block; margin-bottom: 22px; font-weight: 600; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--green); }
+  h1 { font: 900 clamp(52px, 7.6vw, 132px)/.88 var(--display); letter-spacing: -.025em; text-transform: uppercase; }
+  h1 em { font-style: normal; color: var(--green); }
+  .hero-sub { display: grid; grid-template-columns: minmax(0, 360px) auto; gap: 28px; align-items: end; margin-top: 36px; }
+  .hero-sub p { color: var(--muted); font-size: 17px; }
+  .hero-sub .btn { justify-self: start; }
+  .scroll-cue { margin-top: 40px; font-size: 13px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+
+  /* statement: the object revolves in front of this */
+  .statement { min-height: 100vh; display: grid; align-content: center; gap: 2vh; padding: 80px 0; }
+  .statement p { font: 900 clamp(48px, 10.5vw, 190px)/.86 var(--display); letter-spacing: -.03em; text-transform: uppercase; }
+  .statement p:nth-child(2) { text-align: right; color: var(--green); }
+  .statement small { display: block; font: 800 clamp(18px, 2.4vw, 40px)/1 var(--display); color: var(--ink); letter-spacing: 0; }
+
+  /* product: the object lands in the card slot */
+  .product { min-height: 100vh; display: grid; grid-template-columns: 1fr minmax(320px, 520px); gap: 6vw; align-items: center; padding: 96px 0 64px; }
+  .product h2 { font: 900 clamp(40px, 5vw, 84px)/.92 var(--display); letter-spacing: -.02em; text-transform: uppercase; }
+  .product .lede { margin: 24px 0 32px; max-width: 46ch; color: var(--muted); font-size: 17px; }
+  .specs { display: grid; grid-template-columns: repeat(3, auto); gap: 8px 32px; justify-content: start; }
+  .specs dt { font-size: 12px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .specs dd { font: 800 26px/1.1 var(--display); }
+  .card { height: min(68vh, 600px); display: grid; grid-template-rows: auto 1fr auto; border: 2px solid var(--ink); background: var(--card); }
+  .card-top, .card-bottom { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; }
+  .card-top { border-bottom: 2px solid var(--ink); font-weight: 600; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; }
+  .card-bottom { border-top: 2px solid var(--ink); gap: 8px; opacity: clamp(0, calc((var(--s3h-progress, 0) - .82) * 6), 1); }
+  .card-slot { margin: 6%; }                         /* the object's landing spot */
+  .switch { display: flex; gap: 8px; }
+  .switch button { padding: 10px 14px; }
+  .switch button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+
+  /* after the track: the stage unpins and scrolls away with the card */
+  .after { padding: 120px 0; border-top: 2px solid var(--ink); }
+  .after h3 { font: 900 clamp(32px, 4vw, 56px)/.95 var(--display); text-transform: uppercase; max-width: 16ch; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; margin-top: 56px; background: var(--ink); border: 2px solid var(--ink); }
+  .grid3 article { background: var(--bg); padding: 32px; }
+  .grid3 b { display: block; font: 800 22px/1.1 var(--display); text-transform: uppercase; margin-bottom: 10px; }
+  .grid3 p { color: var(--muted); }
+  /* footer: legal row, then the dot-matrix wordmark */
+  .site-footer { padding-top: 28px; color: var(--muted); }
+  .footer-legal { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px 32px; padding-bottom: 22px; border-bottom: 1px solid var(--line); font-size: 11px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; }
+  .footer-links { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 8px 24px; padding: 0; }
+  .footer-links a:hover, .footer-links a:focus-visible { color: var(--ink); }
+  .wordmark { padding-top: 44px; }
+  .wordmark-canvas { display: block; width: 100%; height: 9vw; color: var(--dots); pointer-events: none; }
+
+  @media (max-width: 900px) {
+    .links { display: none; }
+    .product { grid-template-columns: 1fr; gap: 28px; align-content: center; }
+    .card { height: 50vh; }
+    .grid3 { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 767px) {
+    .hero { align-content: start; padding-top: 108px; }
+    .hero-sub { grid-template-columns: 1fr; gap: 20px; margin-top: 24px; }
+    .scroll-cue { display: none; }
+    .product { padding: 72px 0 32px; }
+    .product .lede { margin: 14px 0 18px; font-size: 15px; }
+    .specs dd { font-size: 20px; }
+    .card { height: 44vh; }
+  }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+
+<header>
+  <nav class="wrap">
+    <a class="logo" href="#">Acme<span>.</span>Naturals</a>
+    <div class="links"><a href="#">Products</a><a href="#">Custom</a><a href="#">Sustainability</a><a href="#">About</a></div>
+    <a class="btn" href="#">Get a quote</a>
+  </nav>
+</header>
+
+<main>
+  <!-- The track wraps every section the object travels through. -->
+  <div class="s3h">
+    <!-- The layer spans the whole track; the stage inside it is sticky, so the canvas stays pinned. -->
+    <div class="s3h-layer" aria-hidden="true">
+      <div class="s3h-stage">
+        <!-- Optional: an image shown while loading and when WebGL is unavailable -->
+        <!-- <img class="s3h-poster" src="plate-poster.webp" alt=""> -->
+      </div>
+    </div>
+
+    <section class="hero wrap">
+      <div class="hero-copy">
+        <span class="eyebrow">Compostable tableware</span>
+        <h1>Plates that go <em>back</em> to the earth</h1>
+        <div class="hero-sub">
+          <p>Molded from sugarcane fibre left over after harvest. Sturdy at dinner, gone from the compost in ninety days.</p>
+          <a class="btn solid" href="#">Shop the range</a>
+        </div>
+        <p class="scroll-cue">Scroll to explore ↓</p>
+      </div>
+    </section>
+
+    <section class="statement wrap" id="statement">
+      <p><small>Made from</small>What's left</p>
+      <p>Over</p>
+    </section>
+
+    <section class="product wrap" id="product">
+      <div>
+        <span class="eyebrow">The everyday plate</span>
+        <h2>10" fibre plate</h2>
+        <p class="lede">Oil and cut resistant, microwave safe, and certified home compostable. Printed with your brand or left natural.</p>
+        <dl class="specs">
+          <dt>Diameter</dt><dt>Weight</dt><dt>Breaks down</dt>
+          <dd>25&nbsp;cm</dd><dd>18&nbsp;g</dd><dd>90&nbsp;days</dd>
+        </dl>
+      </div>
+      <div class="card">
+        <div class="card-top"><span>Bestseller</span><span>01 / 02</span></div>
+        <div class="card-slot" id="s3h-slot"></div>
+        <div class="card-bottom">
+          <div class="switch" role="group" aria-label="Product">
+            <button class="btn" data-model="plate" aria-pressed="true">Plate</button>
+            <button class="btn" data-model="bowl" aria-pressed="false">Bowl</button>
+          </div>
+          <a class="btn solid" href="#">Order samples</a>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <section class="after">
+    <div class="wrap">
+      <h3>Everything after the hero scrolls normally</h3>
+      <div class="grid3">
+        <article><b>Kustom print</b><p>Your logo pressed into the rim or printed in food-safe ink.</p></article>
+        <article><b>Low minimums</b><p>Start with a single pallet and scale when you are ready.</p></article>
+        <article><b>Certified</b><p>Home and industrial compost certifications for every line.</p></article>
+      </div>
+    </div>
+  </section>
+  <footer class="site-footer">
+    <div class="wrap footer-legal">
+      <span>© 2026 Acme Naturals · Demo page for the scroll-3d-hero skill</span>
+      <nav class="footer-links" aria-label="Legal">
+        <a href="#">Privacy policy</a><a href="#">Terms &amp; conditions</a><a href="#">Delivery policy</a><a href="#">Cookie settings</a>
+      </nav>
+    </div>
+    <div class="wrap wordmark">
+      <canvas class="wordmark-canvas" id="wordmark" role="img" aria-label="Snolep Technologies"></canvas>
+    </div>
+  </footer>
+</main>
+
+<script type="module">
+/*!
+ * scroll-3d-hero.js
+ * A 3D object pinned in a sticky stage that floats, revolves and travels as the
+ * page scrolls: the "product flips through the hero and lands in a card" effect.
+ *
+ * Vanilla Three.js, no build step. The page needs an import map that resolves
+ * "three" and "three/addons/" (see template.html), plus the stage CSS from SKILL.md.
+ *
+ *   import { createScroll3DHero } from './scroll-3d-hero.js';
+ *   const hero = createScroll3DHero({ track: '.s3h', stage: '.s3h-stage', keyframes: [...] });
+ *
+ * Units used by keyframes (all relative, so one choreography works at any screen size):
+ *   x, y    position of the object's centre: -1 = left/bottom edge, 0 = centre, 1 = right/top edge
+ *   z       depth in world units (positive = towards the camera); usually leave at 0
+ *   size    the object's largest dimension as a fraction of the viewport's shorter side
+ *   rotate  [x, y, z] in degrees, interpolated per axis, so -360 means one full revolution
+ *   shadow  0..1 opacity multiplier for the soft ground shadow
+ */
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+const DEG = Math.PI / 180;
+const POSE_KEYS = ['x', 'y', 'z', 'size', 'rx', 'ry', 'rz', 'shadow'];
+const POSE_DEFAULTS = { x: 0, y: 0, z: 0, size: 0.6, rx: 0, ry: 0, rz: 0, shadow: 0 };
+const NESTED_OPTIONS = ['camera', 'idle', 'shadow', 'lighting'];
+const TONE_MAPPINGS = { neutral: THREE.NeutralToneMapping, aces: THREE.ACESFilmicToneMapping, agx: THREE.AgXToneMapping, none: THREE.NoToneMapping };
+
+const easings = {
+  linear: (t) => t,
+  easeIn: (t) => t * t * t,
+  easeOut: (t) => 1 - (1 - t) ** 3,
+  easeInOut: (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2),
+};
+
+const DEFAULTS = {
+  track: '.s3h', // element whose scroll range drives the animation (wraps hero + following sections)
+  stage: '.s3h-stage', // sticky, viewport-sized element inside the track; the canvas goes here
+  model: { shape: 'plate' }, // { shape: 'plate' | 'bowl', color } | { url: 'model.glb' } | { object: THREE.Object3D }
+  keyframes: [
+    { at: 0, x: 0.5, y: -0.38, size: 1.15, rotate: [60, -30, 20] },
+    { at: 0.5, x: -0.1, y: 0.05, size: 0.45, rotate: [-110, 15, -10] },
+    { at: 1, x: 0, y: 0, size: 0.6, rotate: [-295, 0, 0] },
+  ],
+  responsive: {}, // { '(max-width: 767px)': { keyframes: [...], idle: {...} } }
+  camera: { fov: 30, distance: 5 }, // a narrow fov gives the flat "product shot" look
+  idle: { wobble: 3.5, speed: 0.5, float: 0.015 }, // degrees, radians/second, model-size units; false disables
+  spin: 0, // degrees/second around the model's own up axis (the "turntable" revolve)
+  tilt: 0, // degrees the object leans towards the pointer
+  damping: 7, // how quickly the object catches up with the scrollbar; 0 = locked to it
+  shadow: { opacity: 0.35, width: 0.9, offset: 0.42, color: '#1b1a17' },
+  lighting: { environment: 0.6, key: 1.8, exposure: 1, toneMapping: 'neutral' }, // toneMapping: 'neutral' | 'aces' | 'agx'
+  maxPixelRatio: 2,
+  dracoPath: null, // defaults to the jsDelivr copy matching the loaded three.js revision
+  debug: false, // or add ?s3h-debug to the URL
+  onReady: null, // (hero) => {}
+  onLoadProgress: null, // (fraction) => {} while a GLB downloads
+  onUpdate: null, // (progress, pose) => {} every rendered frame
+};
+
+/* ------------------------------------------------------------------------ */
+
+function createScroll3DHero(userOptions = {}) {
+  const base = mergeOptions(DEFAULTS, userOptions);
+  const track = resolveElement(base.track);
+  const stage = resolveElement(base.stage);
+  if (!track || !stage) {
+    throw new Error(`[scroll-3d-hero] track "${base.track}" or stage "${base.stage}" not found`);
+  }
+  const debug = base.debug || new URLSearchParams(location.search).has('s3h-debug');
+  checkLayout(stage, track);
+
+  let renderer;
+  try {
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+  } catch (err) {
+    console.warn('[scroll-3d-hero] WebGL is unavailable; keeping the poster/fallback content.', err);
+    stage.classList.add('s3h-fallback');
+    return fallbackApi();
+  }
+  renderer.setClearColor(0x000000, 0);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  const canvas = renderer.domElement;
+  canvas.className = 's3h-canvas';
+  canvas.setAttribute('aria-hidden', 'true');
+  stage.appendChild(canvas);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const envTexture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  pmrem.dispose();
+  scene.environment = envTexture;
+
+  const keyLight = new THREE.DirectionalLight(0xffffff, 2);
+  keyLight.position.set(2.5, 4, 3);
+  const rimLight = new THREE.DirectionalLight(0xffffff, 0.6);
+  rimLight.position.set(-4, 2, -3);
+  scene.add(keyLight, rimLight);
+
+  // root = keyframed pose, motion = idle wobble, swap = model-change transition, spinner = turntable spin
+  const root = new THREE.Group();
+  const motion = new THREE.Group();
+  const swap = new THREE.Group();
+  const spinner = new THREE.Group();
+  root.add(motion);
+  motion.add(swap);
+  swap.add(spinner);
+  scene.add(root);
+
+  const shadow = createShadowMesh();
+  scene.add(shadow);
+
+  const clock = new THREE.Clock();
+  const view = { w: 1, h: 1, visW: 1, visH: 1 };
+  const pose = { ...POSE_DEFAULTS };
+  const pointer = { x: 0, y: 0, sx: 0, sy: 0 };
+  const tweens = [];
+  const tiltEuler = new THREE.Euler();
+  const tiltQuat = new THREE.Quaternion();
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  const mediaQueries = Object.keys(base.responsive || {}).map((q) => matchMedia(q));
+
+  let opts = base;
+  let frames = [];
+  let tracks = {};
+  let stageRect = stage.getBoundingClientRect();
+  let target = 0;
+  let smooth = 0;
+  let firstFrame = true;
+  let settled = false;
+  let ready = false;
+  let visible = false;
+  let running = false;
+  let destroyed = false;
+  let current = null;
+  let lastCssProgress = -1;
+  let refreshQueued = false;
+  let swapChain = Promise.resolve();
+  let swapToken = 0;
+  let gltfLoader = null;
+  let debugEl = null;
+  let debugStamp = 0;
+
+  /* ---------- options, sizing and keyframes ---------- */
+
+  function computeOptions() {
+    let o = base;
+    for (const [query, override] of Object.entries(base.responsive || {})) {
+      if (matchMedia(query).matches) o = mergeOptions(o, override);
+    }
+    if (o.idle === false) o = { ...o, idle: { wobble: 0, speed: 0, float: 0 } };
+    if (reducedMotion.matches) {
+      o = { ...o, idle: { ...o.idle, wobble: 0, float: 0 }, spin: 0, tilt: 0, damping: 0 };
+    }
+    return o;
+  }
+
+  function refresh() {
+    refreshQueued = false;
+    if (destroyed) return;
+    opts = computeOptions();
+    renderer.toneMapping = TONE_MAPPINGS[opts.lighting.toneMapping] ?? THREE.NeutralToneMapping;
+    renderer.toneMappingExposure = opts.lighting.exposure;
+    scene.environmentIntensity = opts.lighting.environment;
+    keyLight.intensity = opts.lighting.key;
+    shadow.material.color.set(opts.shadow.color);
+    resize();
+    buildFrames();
+  }
+
+  function scheduleRefresh() {
+    if (refreshQueued) return;
+    refreshQueued = true;
+    requestAnimationFrame(refresh);
+  }
+
+  function resize() {
+    const w = stage.clientWidth;
+    const h = stage.clientHeight;
+    if (!w || !h) return;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, opts.maxPixelRatio));
+    renderer.setSize(w, h, false);
+    camera.fov = opts.camera.fov;
+    camera.aspect = w / h;
+    camera.position.set(0, 0, opts.camera.distance);
+    camera.lookAt(0, 0, 0);
+    camera.updateProjectionMatrix();
+    view.w = w;
+    view.h = h;
+    view.visH = 2 * opts.camera.distance * Math.tan((opts.camera.fov * DEG) / 2);
+    view.visW = view.visH * camera.aspect;
+  }
+
+  function buildFrames() {
+    const list = opts.keyframes || [];
+    const trackRect = track.getBoundingClientRect();
+    const range = Math.max(1, trackRect.height - view.h);
+    frames = list
+      .map((kf, index) => {
+        const frame = { index, ease: resolveEase(kf.ease), values: {}, anchorEl: null, live: null };
+        frame.at = resolveAt(kf.at ?? index / Math.max(1, list.length - 1), trackRect, range);
+        for (const k of ['x', 'y', 'z', 'size', 'shadow', 'rx', 'ry', 'rz']) {
+          if (typeof kf[k] === 'number') frame.values[k] = kf[k];
+        }
+        if (Array.isArray(kf.rotate)) {
+          kf.rotate.forEach((v, i) => {
+            if (typeof v === 'number') frame.values[['rx', 'ry', 'rz'][i]] = v;
+          });
+        }
+        if (kf.anchor) {
+          frame.anchorEl = resolveElement(kf.anchor);
+          if (!frame.anchorEl) console.warn(`[scroll-3d-hero] anchor "${kf.anchor}" not found`);
+          else if (debug) frame.anchorEl.style.outline = '1px dashed #f0f';
+          frame.fit = typeof kf.fit === 'number' ? kf.fit : null;
+          frame.offsetX = kf.x ?? 0; // with an anchor, x/y become offsets from the anchor's centre
+          frame.offsetY = kf.y ?? 0;
+        }
+        return frame;
+      })
+      .sort((a, b) => a.at - b.at || a.index - b.index);
+    tracks = {};
+    for (const key of POSE_KEYS) tracks[key] = frames.filter((f) => hasValue(f, key));
+  }
+
+  function hasValue(frame, key) {
+    if (frame.anchorEl && (key === 'x' || key === 'y')) return true;
+    if (frame.anchorEl && key === 'size' && frame.fit !== null) return true;
+    return frame.values[key] !== undefined;
+  }
+
+  function resolveAt(at, trackRect, range) {
+    if (typeof at === 'number') return clamp01(at);
+    const el = resolveElement(at);
+    if (!el) {
+      console.warn(`[scroll-3d-hero] keyframe "at" target "${at}" not found; using 0`);
+      return 0;
+    }
+    // the progress at which this element's top edge reaches the top of the viewport
+    return clamp01((el.getBoundingClientRect().top - trackRect.top) / range);
+  }
+
+  function updateAnchors() {
+    for (const f of frames) {
+      if (!f.anchorEl) continue;
+      const r = f.anchorEl.getBoundingClientRect();
+      const cx = r.left + r.width / 2 - stageRect.left;
+      const cy = r.top + r.height / 2 - stageRect.top;
+      f.live = {
+        x: (cx / view.w) * 2 - 1 + f.offsetX,
+        y: 1 - (cy / view.h) * 2 + f.offsetY,
+        size: f.fit !== null ? (Math.min(r.width, r.height) / Math.min(view.w, view.h)) * f.fit : undefined,
+      };
+    }
+  }
+
+  function valueOf(frame, key) {
+    if (frame.live && frame.live[key] !== undefined) return frame.live[key];
+    return frame.values[key];
+  }
+
+  function sample(key, p) {
+    const list = tracks[key];
+    if (!list || !list.length) return POSE_DEFAULTS[key];
+    if (p <= list[0].at) return valueOf(list[0], key);
+    for (let i = 1; i < list.length; i++) {
+      const b = list[i];
+      if (p <= b.at) {
+        const a = list[i - 1];
+        const span = b.at - a.at;
+        const t = span > 1e-6 ? (p - a.at) / span : 1;
+        const va = valueOf(a, key);
+        return va + (valueOf(b, key) - va) * b.ease(t);
+      }
+    }
+    return valueOf(list[list.length - 1], key);
+  }
+
+  /* ---------- per-frame update ---------- */
+
+  function frame() {
+    const dt = Math.min(clock.getDelta(), 0.1);
+    const time = clock.elapsedTime;
+
+    const trackRect = track.getBoundingClientRect();
+    stageRect = stage.getBoundingClientRect();
+    const range = trackRect.height - view.h;
+    target = range > 0 ? clamp01(-trackRect.top / range) : 0;
+    if (firstFrame || opts.damping <= 0) {
+      smooth = target;
+      firstFrame = false;
+    } else {
+      smooth += (target - smooth) * (1 - Math.exp(-opts.damping * dt));
+      if (Math.abs(target - smooth) < 1e-4) smooth = target;
+    }
+
+    updateAnchors();
+    for (const key of POSE_KEYS) pose[key] = sample(key, smooth);
+    applyPose(time, dt);
+    runTweens(time);
+    renderer.render(scene, camera);
+
+    if (Math.abs(smooth - lastCssProgress) > 0.0005 || (smooth !== lastCssProgress && (smooth === 0 || smooth === 1))) {
+      track.style.setProperty('--s3h-progress', smooth.toFixed(4));
+      lastCssProgress = smooth;
+    }
+    const nowSettled = smooth === target && tweens.length === 0;
+    if (nowSettled !== settled) {
+      settled = nowSettled;
+      stage.dataset.s3hSettled = String(settled);
+    }
+    if (opts.onUpdate) opts.onUpdate(smooth, pose);
+    if (debugEl && time - debugStamp > 0.1) {
+      debugStamp = time;
+      renderDebug();
+    }
+  }
+
+  function applyPose(time, dt) {
+    const worldSize = Math.max(pose.size * Math.min(view.visW, view.visH), 1e-4);
+    root.position.set((pose.x * view.visW) / 2, (pose.y * view.visH) / 2, pose.z);
+    root.rotation.set(pose.rx * DEG, pose.ry * DEG, pose.rz * DEG);
+    root.scale.setScalar(worldSize);
+
+    if (opts.tilt) {
+      const k = 1 - Math.exp(-4 * dt);
+      pointer.sx += (pointer.x - pointer.sx) * k;
+      pointer.sy += (pointer.y - pointer.sy) * k;
+      // lean in screen space, independent of how the keyframes have rotated the object
+      tiltQuat.setFromEuler(tiltEuler.set(pointer.sy * opts.tilt * DEG, pointer.sx * opts.tilt * DEG, 0));
+      root.quaternion.premultiply(tiltQuat);
+    }
+
+    const { wobble = 0, speed = 0, float = 0 } = opts.idle || {};
+    motion.rotation.x = wobble * DEG * Math.cos(time * speed);
+    motion.rotation.y = wobble * DEG * Math.sin(time * speed);
+    motion.position.y = float * Math.sin(time * speed * 1.7);
+    if (opts.spin) spinner.rotation.y += opts.spin * DEG * dt;
+
+    const so = opts.shadow;
+    const opacity = pose.shadow * so.opacity;
+    shadow.visible = opacity > 0.002;
+    if (shadow.visible) {
+      shadow.material.opacity = opacity;
+      shadow.position.set(root.position.x, root.position.y - worldSize * so.offset, root.position.z);
+      shadow.scale.set(worldSize * so.width, worldSize * so.width * 0.28, 1);
+    }
+  }
+
+  function tween(duration, ease, apply) {
+    return new Promise((resolve) => tweens.push({ start: null, duration, ease, apply, resolve }));
+  }
+
+  function runTweens(time) {
+    for (let i = 0; i < tweens.length; i++) {
+      const tw = tweens[i];
+      if (tw.start === null) tw.start = time;
+      const k = Math.min(1, (time - tw.start) / tw.duration);
+      tw.apply(tw.ease(k));
+      if (k >= 1) {
+        tweens.splice(i--, 1);
+        tw.resolve();
+      }
+    }
+  }
+
+  /* ---------- models ---------- */
+
+  function getLoader() {
+    if (!gltfLoader) {
+      const draco = new DRACOLoader().setDecoderPath(
+        base.dracoPath || `https://cdn.jsdelivr.net/npm/three@0.${THREE.REVISION}.0/examples/jsm/libs/draco/gltf/`
+      );
+      gltfLoader = new GLTFLoader().setDRACOLoader(draco);
+    }
+    return gltfLoader;
+  }
+
+  async function loadModel(source) {
+    const src = typeof source === 'string' ? { url: source } : source || {};
+    let object;
+    if (src.object) {
+      object = src.object;
+    } else if (src.url) {
+      const gltf = await getLoader().loadAsync(src.url, (e) => {
+        if (e.total && base.onLoadProgress) base.onLoadProgress(e.loaded / e.total);
+      });
+      object = gltf.scene;
+    } else {
+      object = buildShape(src);
+    }
+    if (typeof src.prepare === 'function') src.prepare(object);
+    return normalizeObject(object, src.rotate);
+  }
+
+  // Swap the displayed object. With a previous model on screen it revolves out and the new one revolves in.
+  function setModel(source, { direction = 1 } = {}) {
+    const token = ++swapToken;
+    const loading = loadModel(source);
+    loading.catch(() => {}); // the rejection is surfaced through `run` below
+    const run = swapChain.then(async () => {
+      const next = await loading;
+      if (destroyed || token !== swapToken) {
+        disposeObject(next);
+        return;
+      }
+      const animate = current && running && !reducedMotion.matches;
+      if (animate) {
+        await tween(0.45, easings.easeIn, (k) => {
+          swap.scale.setScalar(Math.max(1 - k, 1e-4));
+          swap.rotation.y = k * Math.PI * direction;
+        });
+      }
+      if (current) {
+        spinner.remove(current);
+        disposeObject(current);
+      }
+      current = next;
+      spinner.add(next);
+      if (animate) {
+        await tween(0.6, easings.easeOut, (k) => {
+          swap.scale.setScalar(Math.max(k, 1e-4));
+          swap.rotation.y = (k - 1) * Math.PI * direction;
+        });
+      } else {
+        swap.scale.setScalar(1);
+        swap.rotation.y = 0;
+      }
+    });
+    swapChain = run.catch(() => {});
+    return run;
+  }
+
+  /* ---------- lifecycle ---------- */
+
+  function updateLoop() {
+    const shouldRun = visible && ready && !destroyed;
+    if (shouldRun === running) return;
+    running = shouldRun;
+    if (running) {
+      clock.getDelta();
+      firstFrame = true;
+      renderer.setAnimationLoop(frame);
+    } else {
+      renderer.setAnimationLoop(null);
+    }
+  }
+
+  const io = new IntersectionObserver(
+    (entries) => {
+      visible = entries[entries.length - 1].isIntersecting;
+      updateLoop();
+    },
+    { rootMargin: '200px 0px' }
+  );
+  io.observe(track);
+
+  const ro = new ResizeObserver(scheduleRefresh);
+  ro.observe(stage);
+  ro.observe(track);
+
+  const onPointer = (e) => {
+    pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
+    pointer.y = (e.clientY / window.innerHeight) * 2 - 1;
+  };
+  window.addEventListener('pointermove', onPointer, { passive: true });
+  window.addEventListener('load', scheduleRefresh);
+  document.fonts?.ready.then(scheduleRefresh);
+  reducedMotion.addEventListener('change', scheduleRefresh);
+  mediaQueries.forEach((mq) => mq.addEventListener('change', scheduleRefresh));
+
+  if (debug) {
+    debugEl = document.createElement('div');
+    debugEl.style.cssText =
+      'position:fixed;left:12px;bottom:12px;z-index:2147483647;pointer-events:none;white-space:pre;' +
+      'font:12px/1.45 ui-monospace,Menlo,Consolas,monospace;color:#fff;background:rgba(0,0,0,.78);padding:8px 10px;border-radius:8px';
+    document.body.appendChild(debugEl);
+  }
+
+  function renderDebug() {
+    const f = (n) => (Math.round(n * 1000) / 1000).toString();
+    debugEl.textContent =
+      `scroll-3d-hero  progress ${f(smooth)} (target ${f(target)})\n` +
+      `x ${f(pose.x)}  y ${f(pose.y)}  z ${f(pose.z)}  size ${f(pose.size)}  shadow ${f(pose.shadow)}\n` +
+      `rotate [${Math.round(pose.rx)}, ${Math.round(pose.ry)}, ${Math.round(pose.rz)}]\n` +
+      `keyframes at ${frames.map((fr) => f(fr.at)).join(' · ')}`;
+  }
+
+  function destroy() {
+    destroyed = true;
+    renderer.setAnimationLoop(null);
+    io.disconnect();
+    ro.disconnect();
+    window.removeEventListener('pointermove', onPointer);
+    window.removeEventListener('load', scheduleRefresh);
+    reducedMotion.removeEventListener('change', scheduleRefresh);
+    mediaQueries.forEach((mq) => mq.removeEventListener('change', scheduleRefresh));
+    disposeObject(scene);
+    envTexture.dispose();
+    renderer.dispose();
+    canvas.remove();
+    debugEl?.remove();
+    stage.classList.remove('is-ready');
+    delete stage.dataset.s3hReady;
+    delete stage.dataset.s3hSettled;
+  }
+
+  const api = {
+    get progress() {
+      return smooth;
+    },
+    get settled() {
+      return settled;
+    },
+    get model() {
+      return current;
+    },
+    scene,
+    camera,
+    renderer,
+    setModel,
+    setKeyframes(keyframes) {
+      base.keyframes = keyframes;
+      refresh();
+    },
+    refresh,
+    destroy,
+    ready: null,
+  };
+
+  refresh();
+  api.ready = setModel(base.model).then(
+    () => {
+      if (destroyed) return api;
+      ready = true;
+      stage.classList.add('is-ready');
+      stage.dataset.s3hReady = 'true';
+      updateLoop();
+      if (base.onReady) base.onReady(api);
+      stage.dispatchEvent(new CustomEvent('s3h:ready', { detail: api }));
+      return api;
+    },
+    (err) => {
+      console.error('[scroll-3d-hero] could not load the model', err);
+      stage.classList.add('s3h-error');
+      throw err;
+    }
+  );
+  api.ready.catch(() => {});
+  return api;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Procedural shapes: a molded-fibre plate and bowl, so the effect works     */
+/* before anyone has a real product model.                                   */
+
+const SHAPES = {
+  // [radius, height] profile, diameter 1, traced bottom centre -> rim -> top centre
+  plate: {
+    points: [
+      [0, 0], [0.3, 0], [0.36, 0.012], [0.42, 0.045], [0.47, 0.07], [0.5, 0.079],
+      [0.506, 0.086], [0.499, 0.092],
+      [0.465, 0.084], [0.413, 0.059], [0.353, 0.027], [0.3, 0.014], [0, 0.014],
+    ],
+    ribStart: 0.37,
+    ribs: 44,
+    ribDepth: 0.005,
+  },
+  bowl: {
+    points: [
+      [0, 0], [0.19, 0], [0.29, 0.03], [0.39, 0.12], [0.455, 0.25], [0.49, 0.36], [0.5, 0.385],
+      [0.497, 0.398], [0.481, 0.384],
+      [0.449, 0.262], [0.387, 0.143], [0.288, 0.052], [0.19, 0.022], [0, 0.022],
+    ],
+    ribStart: 0.3,
+    ribs: 36,
+    ribDepth: 0.006,
+  },
+};
+
+function buildShape({ shape = 'plate', color = '#ece4d4', roughness = 0.88, ribs, ribDepth, texture = true } = {}) {
+  const def = SHAPES[shape];
+  if (!def) throw new Error(`[scroll-3d-hero] unknown shape "${shape}"; use "plate" or "bowl", or pass { url } / { object }`);
+  const geometry = latheShape(def, ribs ?? def.ribs, ribDepth ?? def.ribDepth);
+  const map = texture ? fibreTexture() : null;
+  const material = new THREE.MeshStandardMaterial({ color, roughness, metalness: 0, map, bumpMap: map, bumpScale: 1.2 });
+  return new THREE.Mesh(geometry, material);
+}
+
+function latheShape({ points, ribStart }, ribs, ribDepth, segments = 176) {
+  let profile = new THREE.SplineCurve(points.map(([r, y]) => new THREE.Vector2(r, y))).getPoints(140);
+  profile.forEach((p) => (p.x = Math.max(0, p.x)));
+  profile[0].x = 0;
+  profile[profile.length - 1].x = 0;
+
+  const build = (prof) => {
+    const geo = new THREE.LatheGeometry(prof, segments);
+    const pos = geo.attributes.position;
+    if (ribs > 0 && ribDepth > 0) {
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i);
+        const z = pos.getZ(i);
+        const r = Math.hypot(x, z);
+        if (r < ribStart) continue;
+        const w = smoothstep(ribStart, ribStart + 0.05, r);
+        const k = 1 + (ribDepth * w * Math.cos(ribs * Math.atan2(z, x))) / r;
+        pos.setX(i, x * k);
+        pos.setZ(i, z * k);
+      }
+    }
+    geo.computeVertexNormals();
+    stitchSeamNormals(geo, prof.length, segments);
+    return geo;
+  };
+
+  let geo = build(profile);
+  if (!topFacesUp(geo)) {
+    geo.dispose();
+    profile = profile.slice().reverse();
+    geo = build(profile);
+  }
+  return geo;
+}
+
+// LatheGeometry duplicates the first meridian at 360°; average their normals so the seam disappears.
+function stitchSeamNormals(geo, pointsPerMeridian, segments) {
+  const n = geo.attributes.normal;
+  for (let j = 0; j < pointsPerMeridian; j++) {
+    const a = j;
+    const b = segments * pointsPerMeridian + j;
+    const x = n.getX(a) + n.getX(b);
+    const y = n.getY(a) + n.getY(b);
+    const z = n.getZ(a) + n.getZ(b);
+    const len = Math.hypot(x, y, z) || 1;
+    n.setXYZ(a, x / len, y / len, z / len);
+    n.setXYZ(b, x / len, y / len, z / len);
+  }
+}
+
+// The highest vertex near the axis lies on the top surface; its normal must point up.
+function topFacesUp(geo) {
+  const pos = geo.attributes.position;
+  const nor = geo.attributes.normal;
+  let best = -1;
+  let bestY = -Infinity;
+  for (let i = 0; i < pos.count; i++) {
+    const r = Math.hypot(pos.getX(i), pos.getZ(i));
+    if (r > 0.02 && r < 0.12 && pos.getY(i) > bestY) {
+      bestY = pos.getY(i);
+      best = i;
+    }
+  }
+  return best < 0 || nor.getY(best) > 0;
+}
+
+let sharedFibreTexture = null;
+function fibreTexture() {
+  if (sharedFibreTexture) return sharedFibreTexture;
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const g = canvas.getContext('2d');
+  g.fillStyle = '#f4f3f0';
+  g.fillRect(0, 0, size, size);
+  let seed = 11;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const tiled = (x, y, pad, draw) => {
+    // repeat marks near an edge on the opposite side so the texture tiles without seams
+    const xs = x < pad ? [x, x + size] : x > size - pad ? [x, x - size] : [x];
+    const ys = y < pad ? [y, y + size] : y > size - pad ? [y, y - size] : [y];
+    for (const px of xs) for (const py of ys) draw(px, py);
+  };
+  for (let i = 0; i < 6500; i++) {
+    const x = rnd() * size;
+    const y = rnd() * size;
+    const len = 2 + rnd() * 9;
+    const a = rnd() * Math.PI * 2;
+    const v = Math.round(196 + rnd() * 59);
+    g.strokeStyle = `rgba(${v},${v},${v - 8},${0.3 + rnd() * 0.45})`;
+    g.lineWidth = 0.5 + rnd() * 0.9;
+    tiled(x, y, 12, (px, py) => {
+      g.beginPath();
+      g.moveTo(px, py);
+      g.lineTo(px + Math.cos(a) * len, py + Math.sin(a) * len);
+      g.stroke();
+    });
+  }
+  for (let i = 0; i < 1100; i++) {
+    const x = rnd() * size;
+    const y = rnd() * size;
+    const v = Math.round(150 + rnd() * 50);
+    g.fillStyle = `rgba(${v},${v - 10},${v - 24},${0.2 + rnd() * 0.35})`;
+    const r = 0.4 + rnd() * 1.1;
+    tiled(x, y, 3, (px, py) => {
+      g.beginPath();
+      g.arc(px, py, r, 0, Math.PI * 2);
+      g.fill();
+    });
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(6, 2);
+  tex.anisotropy = 4;
+  sharedFibreTexture = tex;
+  return tex;
+}
+
+/* ------------------------------------------------------------------------ */
+
+function createShadowMesh() {
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const g = canvas.getContext('2d');
+  const grad = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.45, 'rgba(255,255,255,0.55)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, size, size);
+  const material = new THREE.MeshBasicMaterial({
+    map: new THREE.CanvasTexture(canvas),
+    transparent: true,
+    depthWrite: false,
+    toneMapped: false,
+    opacity: 0,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material);
+  mesh.renderOrder = -1;
+  mesh.visible = false;
+  return mesh;
+}
+
+// Centre the object and scale it so its largest dimension is 1; keyframe `size` then means the same for any model.
+function normalizeObject(object, rotate) {
+  if (Array.isArray(rotate)) object.rotation.set(...rotate.map((d) => (d || 0) * DEG));
+  const holder = new THREE.Group();
+  holder.add(object);
+  holder.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(object, true);
+  if (box.isEmpty()) return holder;
+  const size = box.getSize(new THREE.Vector3());
+  object.position.sub(box.getCenter(new THREE.Vector3()));
+  holder.scale.setScalar(1 / Math.max(size.x, size.y, size.z));
+  return holder;
+}
+
+function disposeObject(object) {
+  object.traverse((node) => {
+    if (node.geometry) node.geometry.dispose();
+    const materials = Array.isArray(node.material) ? node.material : node.material ? [node.material] : [];
+    for (const m of materials) {
+      for (const value of Object.values(m)) {
+        if (value && value.isTexture && value !== sharedFibreTexture) value.dispose();
+      }
+      m.dispose();
+    }
+  });
+}
+
+function checkLayout(stage, track) {
+  const warn = (msg) => console.warn(`[scroll-3d-hero] ${msg}`);
+  if (!track.contains(stage)) warn('the stage must be inside the track element.');
+  const position = getComputedStyle(stage).position;
+  if (position !== 'sticky' && position !== 'fixed') {
+    warn(`the stage is position: ${position}; it needs position: sticky (see SKILL.md) or the object scrolls away.`);
+  }
+  if (!stage.clientHeight) warn('the stage has no height; give it height: 100vh.');
+  const html = getComputedStyle(document.documentElement);
+  const htmlVisible = html.overflowX === 'visible' && html.overflowY === 'visible';
+  for (let el = stage.parentElement; el && el !== document.documentElement; el = el.parentElement) {
+    if (el === document.body && htmlVisible) continue; // body overflow propagates to the viewport
+    const s = getComputedStyle(el);
+    if (/hidden|auto|scroll/.test(`${s.overflowX} ${s.overflowY}`)) {
+      warn(
+        `<${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}> has overflow ${s.overflowX}/${s.overflowY}, ` +
+          'which stops position: sticky from pinning the stage. Use overflow: clip instead.'
+      );
+      break;
+    }
+  }
+}
+
+function fallbackApi() {
+  const noop = () => {};
+  const ready = Promise.reject(new Error('WebGL unavailable'));
+  ready.catch(noop);
+  return {
+    progress: 0,
+    settled: true,
+    model: null,
+    setModel: () => Promise.resolve(),
+    setKeyframes: noop,
+    refresh: noop,
+    destroy: noop,
+    ready,
+  };
+}
+
+function mergeOptions(base, override = {}) {
+  const out = { ...base, ...override };
+  for (const key of NESTED_OPTIONS) {
+    if (override[key] && typeof override[key] === 'object' && base[key] && typeof base[key] === 'object') {
+      out[key] = { ...base[key], ...override[key] };
+    }
+  }
+  return out;
+}
+
+function resolveElement(target) {
+  if (!target) return null;
+  return typeof target === 'string' ? document.querySelector(target) : target;
+}
+
+function resolveEase(ease) {
+  if (typeof ease === 'function') return ease;
+  return easings[ease] || easings.easeInOut;
+}
+
+function clamp01(v) {
+  return v < 0 ? 0 : v > 1 ? 1 : v;
+}
+
+function smoothstep(a, b, v) {
+  const t = clamp01((v - a) / (b - a));
+  return t * t * (3 - 2 * t);
+}
+
+/* ---- demo page setup ---- */
+
+
+  const hero = createScroll3DHero({
+    track: '.s3h',
+    stage: '.s3h-stage',
+    model: { shape: 'plate' }, // swap for { url: 'your-product.glb' }
+
+    // Each property interpolates between the keyframes that set it.
+    keyframes: [
+      // hero: big, tilted, bleeding off the bottom right
+      { at: 0, x: 0.58, y: -0.3, size: 0.95, rotate: [60, -30, 20], shadow: 0 },
+      // statement section reaches the top: flipped over, showing the underside
+      { at: '#statement', x: -0.08, y: 0.04, rotate: [-110, 20, -12] },
+      { at: 0.62, size: 0.42 },
+      { at: 0.85, shadow: 0 },
+      // product section: lands in the card, upright again after one full revolution
+      { at: 1, anchor: '#s3h-slot', fit: 0.92, rotate: [-295, 0, 0], shadow: 1 },
+    ],
+
+    responsive: {
+      '(max-width: 767px)': {
+        keyframes: [
+          { at: 0, x: 0.1, y: -0.64, size: 0.95, rotate: [60, -30, 20], shadow: 0 },
+          { at: '#statement', x: 0, y: -0.42, rotate: [-110, 20, -12] },
+          { at: 0.62, size: 0.5 },
+          { at: 0.85, shadow: 0 },
+          { at: 1, anchor: '#s3h-slot', fit: 0.92, rotate: [-295, 0, 0], shadow: 1 },
+        ],
+        tilt: 0,
+      },
+    },
+
+    tilt: 4,
+  });
+
+  const buttons = document.querySelectorAll('[data-model]');
+  buttons.forEach((button, i) => {
+    button.addEventListener('click', () => {
+      if (button.getAttribute('aria-pressed') === 'true') return;
+      buttons.forEach((b) => b.setAttribute('aria-pressed', String(b === button)));
+      hero.setModel({ shape: button.dataset.model }, { direction: i === 0 ? -1 : 1 });
+    });
+  });
+</script>
+<script>
+/* Dot-matrix wordmark. The text is drawn off-screen, sampled on a grid, and every filled sample
+   becomes a dot. Dots fly in when the footer scrolls into view, scatter away from the pointer,
+   and spring back to their place. */
+(function () {
+  const canvas = document.getElementById('wordmark');
+  if (!canvas || !canvas.getContext) return;
+  const TEXT = 'SNOLEP TECHNOLOGIES';
+  const FAMILY = 'Archivo';
+  const WEIGHT = 800;
+  const TRACKING = 0.03;   // extra space between letters, in em
+  const CAP = 0.72;        // Archivo's cap height as a fraction of the font size
+  const DOTS_PER_CAP = 15; // grid rows across one capital letter
+  const ctx = canvas.getContext('2d');
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)');
+  const pointer = { x: 0, y: 0, until: 0 };
+  let W = 0, H = 0, dpr = 1, gap = 4, r = 1.3, color = '#999', lastWidth = 0;
+  let n = 0, ox, oy, px, py, vx, vy, ease, fric;
+  let started = false, played = false, scheduled = false, lastTime = 0;
+  const sprite = document.createElement('canvas'); // one pre-drawn dot, stamped for every particle
+  let spriteR = 0;
+
+  function setFont(c, size) {
+    c.font = WEIGHT + ' ' + size + 'px "' + FAMILY + '", "Arial Black", sans-serif';
+    if ('fontStretch' in c) c.fontStretch = 'expanded';
+  }
+  function lineWidth(c, str, size) {
+    setFont(c, size);
+    let w = 0;
+    for (const ch of str) w += c.measureText(ch).width;
+    return w + TRACKING * size * (str.length - 1);
+  }
+  function fit(str, width) {
+    return { str: str, size: (100 * width) / lineWidth(ctx, str, 100) };
+  }
+  // One line when it can be set large enough; otherwise one word per line, each filling the width.
+  function chooseLines(width) {
+    const one = fit(TEXT, width);
+    return one.size >= 56 ? [one] : TEXT.split(' ').map(function (word) { return fit(word, width); });
+  }
+  function drawLine(c, line, baseline) {
+    let x = (W - lineWidth(c, line.str, line.size)) / 2;
+    for (const ch of line.str) {
+      c.fillText(ch, x, baseline);
+      x += c.measureText(ch).width + TRACKING * line.size;
+    }
+  }
+
+  function layout() {
+    const width = canvas.clientWidth;
+    if (!width) return;
+    lastWidth = width;
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const lines = chooseLines(width * 0.995);
+    const minCap = Math.min.apply(null, lines.map(function (l) { return l.size; })) * CAP;
+    gap = Math.max(2.5, Math.min(7, minCap / DOTS_PER_CAP));
+    r = gap * 0.34;
+    const lineGap = gap * 4;
+    const textH = lines.reduce(function (h, l) { return h + l.size * CAP; }, 0) + lineGap * (lines.length - 1);
+    const padTop = Math.round(textH * 0.8); // room above the letters for the fly-in
+    W = width;
+    H = Math.ceil(padTop + textH + gap * 3);
+    canvas.style.height = H + 'px';
+    canvas.style.marginTop = -padTop + 'px';
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+
+    const off = document.createElement('canvas');
+    off.width = Math.ceil(W);
+    off.height = H;
+    const o = off.getContext('2d', { willReadFrequently: true });
+    let baseline = padTop;
+    lines.forEach(function (line) {
+      baseline += line.size * CAP;
+      drawLine(o, line, baseline);
+      baseline += lineGap;
+    });
+    const data = o.getImageData(0, 0, off.width, off.height).data;
+    const pts = [];
+    for (let y = padTop + gap / 2; y < H; y += gap) {
+      for (let x = gap / 2; x < W; x += gap) {
+        if (data[((y | 0) * off.width + (x | 0)) * 4 + 3] > 127) pts.push(x, y);
+      }
+    }
+
+    n = pts.length / 2;
+    ox = new Float32Array(n); oy = new Float32Array(n);
+    px = new Float32Array(n); py = new Float32Array(n);
+    vx = new Float32Array(n); vy = new Float32Array(n);
+    ease = new Float32Array(n); fric = new Float32Array(n);
+    const settle = played || reduce.matches; // after the intro, a re-layout snaps into place
+    for (let i = 0; i < n; i++) {
+      ox[i] = pts[2 * i];
+      oy[i] = pts[2 * i + 1];
+      px[i] = settle ? ox[i] : Math.random() * W;
+      py[i] = settle ? oy[i] : Math.random() * H;
+      ease[i] = 0.035 + Math.random() * 0.05;
+      fric[i] = 0.8 + Math.random() * 0.14;
+    }
+    drawSprite();
+    if (started) { paint(); schedule(); }
+  }
+
+  function frame(now) {
+    scheduled = false;
+    const step = Math.min(0.2, lastTime ? (now - lastTime) / 1000 : 1 / 60) * 60; // 1 = one 60 Hz frame
+    lastTime = now;
+    const R = Math.max(50, gap * 14), R2 = R * R;
+    const active = now < pointer.until;
+    let moving = false;
+    for (let i = 0; i < n; i++) {
+      if (active) {
+        const dx = px[i] - pointer.x, dy = py[i] - pointer.y, d2 = dx * dx + dy * dy;
+        if (d2 < R2 && d2 > 1e-4) {
+          const d = Math.sqrt(d2), push = (1 - d / R) * 5 * (0.5 + Math.random()) * step;
+          vx[i] += (dx / d) * push + (Math.random() - 0.5) * 0.6 * step;
+          vy[i] += (dy / d) * push + (Math.random() - 0.5) * 0.6 * step;
+        }
+      }
+      const f = Math.pow(fric[i], step), k = 1 - Math.pow(1 - ease[i], step);
+      vx[i] *= f;
+      vy[i] *= f;
+      px[i] += vx[i] * step + (ox[i] - px[i]) * k;
+      py[i] += vy[i] * step + (oy[i] - py[i]) * k;
+      if (!moving && (Math.abs(ox[i] - px[i]) + Math.abs(oy[i] - py[i]) > 0.1 || Math.abs(vx[i]) + Math.abs(vy[i]) > 0.05)) moving = true;
+    }
+    paint();
+    if (moving || active) schedule();
+    else { lastTime = 0; canvas.dataset.settled = 'true'; }
+  }
+
+  function drawSprite() {
+    const size = Math.ceil(r * 2 * dpr) + 2;
+    sprite.width = sprite.height = size;
+    const s = sprite.getContext('2d');
+    s.fillStyle = color;
+    s.beginPath();
+    s.arc(size / 2, size / 2, r * dpr, 0, 6.2832);
+    s.fill();
+    spriteR = size / 2;
+  }
+
+  function paint() {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (let i = 0; i < n; i++) ctx.drawImage(sprite, px[i] * dpr - spriteR, py[i] * dpr - spriteR);
+  }
+
+  function schedule() {
+    if (scheduled) return;
+    scheduled = true;
+    canvas.dataset.settled = 'false';
+    requestAnimationFrame(frame);
+  }
+
+  function readColor() {
+    color = getComputedStyle(canvas).color || color;
+    drawSprite();
+  }
+
+  function start() {
+    if (started) return;
+    started = true;
+    played = true;
+    readColor();
+    if (reduce.matches) { px.set(ox); py.set(oy); }
+    paint();
+    schedule();
+  }
+
+  const io = new IntersectionObserver(function (entries) {
+    if (entries.some(function (e) { return e.isIntersecting; })) {
+      io.disconnect();
+      start();
+    }
+  }, { threshold: 0.3 });
+
+  window.addEventListener('pointermove', function (e) {
+    if (!started || reduce.matches) return;
+    const b = canvas.getBoundingClientRect();
+    const x = e.clientX - b.left, y = e.clientY - b.top;
+    if (x < -40 || x > b.width + 40 || y < -40 || y > b.height + 40) return;
+    pointer.x = x;
+    pointer.y = y;
+    pointer.until = performance.now() + 120;
+    schedule();
+  }, { passive: true });
+
+  new ResizeObserver(function () {
+    if (canvas.clientWidth && canvas.clientWidth !== lastWidth) requestAnimationFrame(layout);
+  }).observe(canvas.parentElement);
+
+  function recolor() { readColor(); if (started) paint(); }
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', recolor);
+  new MutationObserver(recolor).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+  // Sample the real font, not a fallback: wait for it (briefly), and re-sample if it arrives late.
+  let usedFont = false;
+  const fontLoad = document.fonts && document.fonts.load
+    ? document.fonts.load(WEIGHT + ' expanded 100px "' + FAMILY + '"').then(function () { return true; }, function () { return false; })
+    : Promise.resolve(false);
+  fontLoad.then(function (ok) { if (ok && !usedFont && n) layout(); });
+  Promise.race([fontLoad, new Promise(function (res) { setTimeout(function () { res(false); }, 2500); })]).then(function (ok) {
+    usedFont = !!ok;
+    layout();
+    io.observe(canvas);
+  });
+})();
+</script>
+</body></html>
