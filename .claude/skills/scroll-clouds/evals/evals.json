@@ -1,0 +1,23 @@
+{
+  "skill_name": "scroll-clouds",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "On unitedcarriers.com the clouds roll in over the ocean as you scroll until the whole screen is white. Can you build that for my landing page? It should go from our dark navy hero (#0d1b3e) into the white features section.",
+      "expected_output": "A page (or patch) with a tall sticky track using cloud-cover.js, from '#0d1b3e' to '#ffffff', hero copy fading with --cloud-cover, the following section on white, checked with scripts/preview.mjs.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "I want a night-to-day transition between two sections of my Next.js site using clouds, no video or images please, and it must not run when nobody is scrolling.",
+      "expected_output": "A client component that calls createCloudCover in an effect (and destroy on unmount), with drift left at 0 so it renders only while scrolling, a note on reduced motion and the WebGL fallback.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Make the fog thicker and slower: it should take three screens to cover everything and start with some mist already around the edges. Our colours are a stormy grey #1c2230 going to #e9ecef.",
+      "expected_output": "Options set for a longer track (about 350vh or start/end), wisps raised, from/to/shade set to the storm recipe, and a preview run showing an even build-up.",
+      "files": []
+    }
+  ]
+}
