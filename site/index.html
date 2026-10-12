@@ -131,7 +131,6 @@
   footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 6px 28px; padding: 18px 0 20px; font: 500 11px/1.5 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
   footer nav { display: flex; gap: 22px; flex-wrap: wrap; }
   footer a { text-decoration: none; }
-  .credit { flex-basis: 100%; text-transform: none; letter-spacing: 0; font: 400 11px/1.5 var(--body); color: #6f9aa1; }
 
   /* the cursor (fine pointers): a ring that fills with the page's scroll progress; over the call to
      action it becomes a small "work with us" disc that smears behind itself when it moves */
@@ -294,7 +293,6 @@
     <div class="wrap">
       <span>© 2026 Snolep Technologies</span>
       <nav aria-label="Legal"><a href="#">Privacy</a><a href="#">Terms</a></nav>
-      <p class="credit">Fox model (a stand-in for the snow leopard) by PixelMannen (CC0); rigging and animation by tomkranis (CC BY 4.0); glTF conversion by @AsoboStudio and @scurest (CC BY 4.0), from the Khronos glTF Sample Assets.</p>
     </div>
   </footer>
 </div>
@@ -429,14 +427,15 @@
 <script type="module">
   import { createDotStory } from './js/dot-story.js';
 
-  // Credit the fox's authors wherever you use it (see the footer). Swap in the snow leopard here.
-  const MODEL = './models/fox.glb';
+  // Our own snow leopard (site/tools/snow-leopard.py builds it): clips "Stand" and "Leap".
+  const MODEL = './models/snow-leopard.glb';
 
   // One story, tuned per screen size: the logo's snow leopard dissolves into dots, which gather into
   // the animal; it bounds from word to word, dives into the hourglass, comes out of the bottom and
   // lands on the name at the foot of the page, where it dissolves into it.
   const DIVE = -45; // the slant it dives into the hourglass at, and comes out of it at (degrees, nose down)
-  const LEAP = { clip: 'Run', from: 0.15, to: 0.6 }; // one bound of the gallop per leap: gather, stretch, gather
+  // one bound per leap, scrubbed with the scroll: gathered, push off, full stretch (0.5), reach, land
+  const LEAP = { clip: 'Leap', from: 0.02, stretch: 0.5, to: 0.98 };
   const leap = (at, from, to, apex, size, pitchDown = -16) => [
     { at, after: from, clip: LEAP.clip, clipTime: LEAP.from },
     { at, after: from + (to - from) * 0.3, pitch: 16, ease: 'spline' },
@@ -469,25 +468,25 @@
     k.push(
       // from the last word, one bound head first into the hourglass as the glass settles
       { at: '#work', after: -0.7, anchor: perch(4), align: 'bottom', pitch: 0 },
-      { at: '#work', after: -0.7, clip: 'Run', clipTime: LEAP.from },
+      { at: '#work', after: -0.7, clip: LEAP.clip, clipTime: LEAP.from },
       { at: '#work', after: -0.55, pitch: 14, ease: 'spline' },
       { at: '#work', after: -0.38, x: dive[0], y: dive[1], size: s * 0.9, ease: 'spline' },
       { at: '#work', after: -0.18, pitch: -20, ease: 'spline' },
       { at: '#work', after: 0, anchor: '#hg-top', align: 'pour', pour: -0.2, size: inside, pitch: DIVE, ease: 'spline' },
-      { at: '#work', after: 0, clip: 'Run', clipTime: LEAP.to, ease: 'linear' },
+      { at: '#work', after: 0, clip: LEAP.clip, clipTime: LEAP.stretch, ease: 'linear' },
       { at: '#work', after: 0.75, anchor: '#hg-top', align: 'pour', pour: 1.35, ease: 'linear' },
       // the sand runs through the neck as the projects go by
       { at: '#work', after: 0.2, drain: 0 },
       { at: '#work', after: out[0] - 0.05, drain: 1, ease: 'linear' },
       // out of the bottom, nose first, stretched in one long dive...
-      { at: '#work', after: out[0], anchor: '#hg-bottom', align: 'emerge', emerge: -0.35, size: inside, pitch: DIVE, clip: 'Run', clipTime: LEAP.to, face: 1 },
+      { at: '#work', after: out[0], anchor: '#hg-bottom', align: 'emerge', emerge: -0.35, size: inside, pitch: DIVE, clip: LEAP.clip, clipTime: LEAP.stretch, face: 1 },
       { at: '#work', after: out[1], anchor: '#hg-bottom', align: 'emerge', emerge: 1, size: inside, pitch: DIVE, ease: 'linear' },
-      { at: '#work', after: out[1], clip: 'Run', clipTime: LEAP.to },
+      { at: '#work', after: out[1], clip: LEAP.clip, clipTime: LEAP.stretch },
       // ...and one bound down onto the headline of the call to action; then it dissolves into the
       // name at the foot of the page
       { at: '#cta', after: land - 0.2, pitch: -20, size: s, ease: 'spline' },
       { at: '#cta', after: land, anchor: perch(5), align: 'bottom', pitch: 0, size: s, ease: 'spline' },
-      { at: '#cta', after: land, clip: 'Run', clipTime: LEAP.to + 0.45, ease: 'linear' },
+      { at: '#cta', after: land, clip: LEAP.clip, clipTime: LEAP.to, ease: 'linear' },
       { at: '#cta', after: land, clipTime: 0, face: 0 },
       { at: '#cta', after: -0.22, form: 'character' },
       { at: '#cta', after: 0, form: 'logo', ease: 'easeOut' },
@@ -500,16 +499,17 @@
     image: { anchor: '#leopard' },
     character: {
       url: MODEL,
-      animation: { idle: 'Survey', walk: 'Walk', run: 'Run', still: 'pose', face: { moving: 90, idle: 75, start: -1 } },
+      // gait: false — it never walks or runs on its own, so on a word it stands still; only leaps move it
+      animation: { idle: 'Stand', still: 'pose', gait: false, face: { moving: 90, idle: 75, start: -1 } },
     },
     hourglass: { anchor: '#hourglass', panel: '#panel', dive: DIVE },
     inverse: '.finale',
     logo: { anchor: '#logo', text: 'SNOLEP TECHNOLOGIES', dotsPerCap: 13 }, // its dot count is the pool size
-    keyframes: story({ big: 0.4, s: 0.28, inside: 0.22, apex: [0, 0.72], apex0: [-0.3, 0.8], dive: [-0.15, 0.7], out: [1.5, 2.0], hop: [-0.75, -0.4], land: -0.55 }),
+    keyframes: story({ big: 0.56, s: 0.4, inside: 0.3, apex: [0, 0.72], apex0: [-0.3, 0.8], dive: [-0.15, 0.7], out: [1.5, 2.0], hop: [-0.75, -0.4], land: -0.55 }),
     responsive: {
       '(max-width: 767px)': {
         gap: 3,
-        keyframes: story({ big: 0.5, s: 0.34, inside: 0.21, apex: [0, 0.7], apex0: [-0.1, 0.8], dive: [0.1, 0.6], out: [1.55, 2.05], hop: [-0.67, -0.35], land: -0.4 }),
+        keyframes: story({ big: 0.68, s: 0.48, inside: 0.29, apex: [0, 0.7], apex0: [-0.1, 0.8], dive: [0.1, 0.6], out: [1.55, 2.05], hop: [-0.67, -0.35], land: -0.4 }),
       },
     },
   });

@@ -69,7 +69,7 @@ const smoothstep = (t) => t * t * (3 - 2 * t);
 const DEFAULTS = {
   canvas: '#dots', // a full-viewport canvas (position: fixed); its CSS `color` is the dot colour
   image: null, // { anchor: '#mascot' (an <img>), contrast, flip }: the picture the dots start as
-  character: null, // { url | buffer, animation: { idle, walk, run, still, face }, rotate, tilt }
+  character: null, // { url | buffer, animation: { idle, walk, run, still, face, gait }, rotate, tilt }
   hourglass: null, // { anchor: '#hourglass', panel: '#panel', dive: -70 (match the pitch it pours in at), crumble: 0.3 }
   inverse: null, // selector for dark areas where dots use --panel-dots (the hourglass panel always does)
   logo: null, // { anchor: '#logo', text: 'ACME', fontFamily, fontWeight, fontStretch, ... }
@@ -611,7 +611,8 @@ export function createDotStory(userOptions = {}) {
     c.speed += (speed - c.speed) * k;
     c.vx += (vxs - c.vx) * k;
     const anim = c.anim;
-    if (anim) anim.update(dt, c.speed, reduce.matches, sampleClip(p));
+    // gait: false never walks or runs on its own; only clips the keyframes scrub (a leap) move it
+    if (anim) anim.update(dt, anim.conf.gait === false ? 0 : c.speed, reduce.matches, sampleClip(p));
     const conf = anim ? anim.conf : { walkAbove: 0.08, still: 'pose' };
     const face = faceConfig();
     if (!c.dir) c.dir = face.start;
