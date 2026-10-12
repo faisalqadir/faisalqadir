@@ -21,21 +21,25 @@ Technologies, with the Khronos sample fox standing in for the final animal).
 
 ## How it works
 
-- **A dotted, animated character.** Every frame the rigged GLB is posed (gait, scrubbed clips,
-  facing, pitch) and rendered off-screen into a tiny target at one pixel per dot, in a side view. Each
-  covered pixel becomes a target for a dot. The silhouette changes with the animation, so the dots move
-  the way the animal moves. It uses `createAnimator` from scroll-3d-hero.js, so all the animation
+- **The same dots all the way down.** The pool size is the wordmark's dot count (its `dotsPerCap`,
+  default 10, sets how many). The character is dithered to exactly that many dots, and the hourglass
+  grid is sized so its sand is exactly those dots, one per cell. Each dot keeps a slot in a single
+  order, so it has a consistent place in every form. Nothing appears or disappears along the way.
+- **A 3D character in dots (Atkinson dithering).** Every frame the rigged GLB is posed (gait,
+  scrubbed clips, facing, pitch) and rendered lit and textured, in a side view, into a small target.
+  Its tones are stretched around their average (`contrast`, default 1.9) and Atkinson-dithered:
+  shadows and dark markings come out dense, highlights sparse, so the dots show volume rather than a
+  flat silhouette. The dither density is steered towards N, and an exact-count step drops the palest
+  dots or adds the darkest spare ones. The adjustment only kicks in when the count drifts, so a still
+  character dithers identically every frame. The cell size scales with the character, so the same
+  N dots always cover it. It uses `createAnimator` from scroll-3d-hero.js, so all the animation
   options apply.
-- **One pool of dots.** The pool size equals the number of dots in the wordmark, so the final form is
-  exact. In the character and the sand, several dots share a target. They separate when the pointer
-  scatters them, which reads as density.
-- **Switching forms.** Between two keyframes with different `form`s, each dot switches at its own
-  moment (mostly in order, with some scatter), so the shape streams across instead of jumping. Leaving
-  the hourglass runs in reverse, so the mound shrinks from the top.
-- **The hourglass sand.** The top bulb's cells are ordered from the neck upwards, and the bottom
-  bulb's as a mound from the base. As `sand` goes 0 → 1, each dot steps along that order, so the
-  whole top pile sinks while a thin stream falls through the neck. Everything is tied to scroll, so
-  it stops when the visitor stops.
+- **Pouring in through the top.** Entering the hourglass, the dots leave the character in order
+  (feet first), fall through the top opening as a narrow stream that fans out just above the pile, and
+  stack from the neck up. Leaving it runs in reverse, so the mound shrinks from the top.
+- **Draining.** As `sand` goes 0 → 1, every dot steps one cell along the drain order, so the whole
+  top pile sinks while a thin stream falls through the neck. It's tied to scroll, so it stops when
+  the visitor stops.
 - **Colours.** Dots use the canvas's CSS `color`. Inside the dark panel they switch to `--panel-dots`.
 - **Settling.** The loop stops once nothing moves. Scrolling, the pointer or a resize wakes it.
 
@@ -111,7 +115,11 @@ createDotStory({
   logo: { anchor: '#logo', text: 'BRAND NAME' },   // plus fontFamily, fontWeight, fontStretch, dotsPerCap…
   keyframes: [...],
   responsive: { '(max-width: 767px)': { gap: 3, keyframes: [...] } },
-  gap: 4, dotSize: 0.68, damping: 8, pointer: { radius: 64, force: 5 },
+  logo: { anchor: '#logo', text: 'BRAND NAME', dotsPerCap: 10 }, // its dot count is the pool size
+  contrast: 1.9,     // tone stretch before dithering: higher = more 3D, lower = flatter
+  dotRadius: null,   // one size for every form (default: from the wordmark's spacing)
+  gap: 4,            // starting grid for the sand (it adjusts to hold exactly the pool)
+  damping: 8, pointer: { radius: 64, force: 5 },
   particles: 2400,   // pool size if there's no logo
 });
 ```
@@ -125,8 +133,10 @@ Add `?dots-debug` to the URL for an overlay with progress, form, pose and dot co
   keeps it near profile even at rest. A three-quarter view turns into a blob of dots.
 - **Give the ending room.** The merge into the wordmark needs a few hundred pixels of scrolling. The
   template's run section is 160vh, so the dots stream down as the footer arrives.
-- **Gap.** 4 px on desktop and 3 px on phones keeps the fox recognisable. Bigger gaps look chunkier
-  and draw faster.
+- **Pool size versus character size.** The dots are shared, so a bigger pool means a finer, denser
+  character. If the character looks crowded, lower the wordmark's `dotsPerCap` or make the
+  character bigger. If it looks sparse, do the opposite. About 1,000–1,500 dots suits a character
+  around a third of the screen tall.
 - **Keep copy out of the path.** The diagonal leap runs from upper right to lower left, so captions go
   top right; on phones the leap stays in the lower part of the screen.
 - **Hosts that block file downloads** (such as single-file demos): pass `character: { buffer }` with

@@ -88,7 +88,7 @@
 
   @media (max-width: 767px) {
     .hero { align-content: start; padding-top: 14vh; }
-    .leap { justify-items: start; }
+    .leap { justify-items: start; align-content: end; padding: 0 0 6vh; } /* caption arrives after the landing */
     .leap .caption { text-align: left; }
     .hg-section { grid-template-columns: 1fr; }
     .hg-panel { height: 56vh; z-index: 1; }
@@ -230,19 +230,19 @@
       animation: { idle: 'Survey', walk: 'Walk', run: 'Run', still: 'pose', face: { moving: 90, idle: 75, start: -1 } },
     },
     hourglass: { anchor: '#hourglass', panel: '#panel' },
-    logo: { anchor: '#logo', text: 'SNOLEP TECHNOLOGIES' },
+    logo: { anchor: '#logo', text: 'SNOLEP TECHNOLOGIES', dotsPerCap: 10 }, // its dot count is the pool size
     keyframes: [
-      { at: 0, form: 'character', x: 0.5, y: 0.25, size: 0.3, pitch: 0 },
-      ...leap(0.5, 0.25, [0.2, 0.35], [-0.5, -0.55], 0.3),
-      ...middle([0.45, -0.5], 0.3),
+      { at: 0, form: 'character', x: 0.5, y: 0.25, size: 0.36, pitch: 0 },
+      ...leap(0.5, 0.25, [0.2, 0.35], [-0.5, -0.55], 0.36),
+      ...middle([0.45, -0.5], 0.36),
     ],
     responsive: {
       '(max-width: 767px)': {
         gap: 3,
         keyframes: [
-          // the leap stays in the lower part of the screen, under the caption
+          // on phones it leaps up into the top half, clear of the caption that scrolls in below
           { at: 0, form: 'character', x: 0.35, y: -0.5, size: 0.42, pitch: 0 },
-          ...leap(0.35, -0.5, [0.1, -0.42], [-0.45, -0.78], 0.42),
+          ...leap(0.35, -0.5, [0.1, 0.12], [-0.45, 0.32], 0.42),
           ...middle([0.4, -0.7], 0.42),
         ],
       },

@@ -68,7 +68,7 @@ export function createDotStory(userOptions = {}) {
   let tracks = {};
   let vw = 1, vh = 1, dpr = 1, range = 1;
   let target = 0, smooth = 0, lastTime = 0, rafId = 0, destroyed = false, ready = false, lastScrollY = -1;
-  let N = 0, px, py, vx, vy, ease, fric, rank;
+  let N = 0, px, py, vx, vy, ease, fric, rank, pos;
   let dotR = 1.3, spriteR = 0, colors = { ink: '#222', panel: '#eee' };
   let debugEl = null;
 
@@ -181,7 +181,8 @@ export function createDotStory(userOptions = {}) {
   const character = {
     renderer: null, scene: null, camera: null, rt: null, buf: null, holder: null,
     yawGroup: null, tiltGroup: null, pitchGroup: null, anim: null,
-    pts: new Float32Array(0), count: 0, w: 0, h: 0,
+    pts: new Float32Array(0), count: 0, w: 0, h: 0, cellK: 0, gain: 1,
+    dark: new Float32Array(0), err: new Float32Array(0),
     last: null, speed: 0, vx: 0, dir: 0, yaw: 0, snap: true, moved: false,
   };
 
@@ -190,7 +191,11 @@ export function createDotStory(userOptions = {}) {
     renderer.setPixelRatio(1);
     renderer.setClearColor(0x000000, 0);
     const scene = new THREE.Scene();
-    scene.overrideMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    // lit like a product shot, so the dithering picks up its shading and markings
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x202020, 0.7));
+    const key = new THREE.DirectionalLight(0xffffff, 3);
+    key.position.set(-1.4, 2.4, 2.2);
+    scene.add(key);
     // an orthographic side view, in units of the character's length
     const camera = new THREE.OrthographicCamera(-0.8, 0.8, 0.6, -0.6, -10, 10);
     camera.position.set(0, 0, 5);
@@ -213,21 +218,29 @@ export function createDotStory(userOptions = {}) {
     if (src.animation && gltf.animations.length) character.anim = createAnimator(object, gltf.animations, src.animation);
   }
 
-  // Render the posed character into a tiny target (one pixel per dot) and read back which cells it covers.
-  function sampleCharacter(pose, dt, p) {
+  function renderCharacter(w, h) {
     const c = character;
-    if (!c.renderer) return;
-    const len = Math.max(8, pose.size * Math.min(vw, vh));
-    const gap = opts.gap;
-    const w = Math.max(4, Math.ceil((1.6 * len) / gap));
-    const h = Math.max(4, Math.ceil((1.2 * len) / gap));
     if (!c.rt || c.w !== w || c.h !== h) {
       c.rt?.dispose();
       c.rt = new THREE.WebGLRenderTarget(w, h);
       c.buf = new Uint8Array(w * h * 4);
+      c.dark = new Float32Array(w * h);
+      c.err = new Float32Array(w * h);
       c.w = w;
       c.h = h;
     }
+    c.renderer.setRenderTarget(c.rt);
+    c.renderer.clear();
+    c.renderer.render(c.scene, c.camera);
+    c.renderer.readRenderTargetPixels(c.rt, 0, 0, w, h, c.buf);
+    c.renderer.setRenderTarget(null);
+  }
+
+  // Pose the character, render it lit into a small target, and Atkinson-dither it into exactly N dots.
+  function sampleCharacter(pose, dt, p) {
+    const c = character;
+    if (!c.renderer || !N) return;
+    const len = Math.max(8, pose.size * Math.min(vw, vh));
     const cx = ((pose.x + 1) / 2) * vw;
     const cy = ((1 - pose.y) / 2) * vh;
 
@@ -257,25 +270,108 @@ export function createDotStory(userOptions = {}) {
     c.yawGroup.rotation.y = c.yaw;
     c.pitchGroup.rotation.z = pose.pitch * DEG * c.dir; // nose up, whichever way it faces
 
-    c.renderer.setRenderTarget(c.rt);
-    c.renderer.clear();
-    c.renderer.render(c.scene, c.camera);
-    c.renderer.readRenderTargetPixels(c.rt, 0, 0, w, h, c.buf);
-    c.renderer.setRenderTarget(null);
+    // Dither cell: sized once so the silhouette offers about 1.6 cells per dot, then scaled with the
+    // character, so the same N dots always cover it (they spread out as it grows).
+    if (!c.cellK) {
+      const probe = 96;
+      renderCharacter(Math.ceil(probe * 1.6), Math.ceil(probe * 1.2));
+      let covered = 0;
+      for (let i = 3; i < c.buf.length; i += 4) if (c.buf[i] > 127) covered++;
+      const areaNorm = covered / (probe * probe); // covered area as a fraction of length²
+      c.cellK = Math.sqrt(areaNorm / (1.6 * N));
+    }
+    const cell = Math.max(1.5, len * c.cellK);
+    const w = Math.max(4, Math.ceil((1.6 * len) / cell));
+    const h = Math.max(4, Math.ceil((1.2 * len) / cell));
+    renderCharacter(w, h);
 
-    if (c.pts.length < w * h * 2) c.pts = new Float32Array(w * h * 2);
-    let m = 0;
-    for (let yy = h - 1; yy >= 0; yy--) {
-      // top row first, so dot order runs top-left to bottom-right
-      for (let xx = 0; xx < w; xx++) {
-        if (c.buf[(yy * w + xx) * 4 + 3] > 127) {
-          c.pts[m * 2] = cx + (xx + 0.5 - w / 2) * gap;
-          c.pts[m * 2 + 1] = cy - (yy + 0.5 - h / 2) * gap;
-          m++;
-        }
+    // darkness per covered pixel (highlights keep a little density, so the outline survives)
+    const buf = c.buf;
+    const dark = c.dark;
+    const err = c.err;
+    let covered = 0;
+    for (let i = 0; i < w * h; i++) {
+      if (buf[i * 4 + 3] < 128) {
+        dark[i] = -1;
+        err[i] = -1;
+        continue;
+      }
+      covered++;
+      const lum = Math.pow((buf[i * 4] * 0.299 + buf[i * 4 + 1] * 0.587 + buf[i * 4 + 2] * 0.114) / 255, 1 / 2.2);
+      dark[i] = 1 - lum;
+    }
+    // stretch the tones around their average, so light and shadow (the 3D form) survive the dithering;
+    // a floor keeps highlights from vanishing, so the outline still reads
+    let mean = 0;
+    for (let i = 0; i < w * h; i++) if (dark[i] >= 0) mean += dark[i];
+    mean /= Math.max(1, covered);
+    const contrast = opts.contrast ?? 1.9;
+    for (let i = 0; i < w * h; i++) {
+      if (dark[i] < 0) continue;
+      dark[i] = Math.min(1, Math.max(0.1, 0.5 + (dark[i] - mean) * contrast));
+      err[i] = Math.min(1, dark[i] * c.gain);
+    }
+
+    // Atkinson dithering, top row first: 6/8 of the error goes to six neighbours, 2/8 is dropped,
+    // which keeps contrast crisp. Error only flows within the silhouette.
+    const on = [];
+    const add = (x, r, e) => {
+      if (x < 0 || x >= w || r >= h) return;
+      const j = (h - 1 - r) * w + x; // GL rows run bottom-up
+      if (err[j] > -0.5) err[j] += e;
+    };
+    for (let r = 0; r < h; r++) {
+      for (let x = 0; x < w; x++) {
+        const i = (h - 1 - r) * w + x;
+        const v = err[i];
+        if (v < -0.5) continue;
+        const isOn = v >= 0.5;
+        if (isOn) on.push(i);
+        const e = (v - (isOn ? 1 : 0)) / 8;
+        add(x + 1, r, e);
+        add(x + 2, r, e);
+        add(x - 1, r + 1, e);
+        add(x, r + 1, e);
+        add(x + 1, r + 1, e);
+        add(x, r + 2, e);
       }
     }
+    // steer the density towards N dots, but only when it drifts noticeably: a still character then
+    // dithers identically every frame (the exact-count step below absorbs small differences)
+    if (on.length && Math.abs(on.length - N) > N * 0.06) {
+      c.gain = Math.min(4, Math.max(0.2, c.gain * Math.min(1.25, Math.max(0.8, Math.sqrt(N / on.length)))));
+    }
+
+    // exactly N distinct dots: drop the palest extras, or switch on the darkest unused pixels
+    let chosen = on;
+    if (on.length > N) {
+      chosen = on.slice().sort((a, b) => dark[b] - dark[a]).slice(0, N);
+    } else if (on.length < N) {
+      const isOn = new Uint8Array(w * h);
+      for (const i of on) isOn[i] = 1;
+      const spare = [];
+      for (let i = 0; i < w * h; i++) if (dark[i] > -0.5 && !isOn[i]) spare.push(i);
+      spare.sort((a, b) => dark[b] - dark[a]);
+      chosen = on.concat(spare.slice(0, N - on.length));
+    }
+    // bottom rows first: the feet lead when the dots pour into the hourglass
+    chosen.sort((a, b) => a - b);
+    if (c.pts.length < N * 2) c.pts = new Float32Array(N * 2);
+    let m = 0;
+    for (const i of chosen) {
+      const yy = Math.floor(i / w);
+      const xx = i - yy * w;
+      c.pts[m * 2] = cx + (xx + 0.5 - w / 2) * cell;
+      c.pts[m * 2 + 1] = cy - (yy + 0.5 - h / 2) * cell;
+      m++;
+    }
+    // a silhouette too small for N dots doubles some up, nudged half a cell
+    for (let q = 0; m < N && q < N; q++, m++) {
+      c.pts[m * 2] = c.pts[(q % Math.max(1, chosen.length)) * 2] + cell * 0.5;
+      c.pts[m * 2 + 1] = c.pts[(q % Math.max(1, chosen.length)) * 2 + 1] + cell * 0.5;
+    }
     c.count = m;
+    c.covered = covered;
   }
 
   /* ---------- the hourglass ---------- */
@@ -287,7 +383,7 @@ export function createDotStory(userOptions = {}) {
     return HG.neck + (HG.max - HG.neck) * Math.sqrt(Math.max(0, 1 - (1 - t) ** 2));
   }
 
-  const hourglass = { el: null, panel: null, w: 0, h: 0, top: null, bottom: null, topN: 0, bottomN: 0 };
+  const hourglass = { el: null, panel: null, w: 0, h: 0, n: 0, gap: 4, top: null, bottom: null, topN: 0, bottomN: 0 };
 
   function hourglassPath() {
     // the glass outline in a 100 x 150 viewBox; the sand cells use the same halfWidth()
@@ -301,12 +397,7 @@ export function createDotStory(userOptions = {}) {
     return `M${right.join(' L')} L${left.join(' L')} Z`;
   }
 
-  function buildHourglassCells() {
-    const r = hourglass.el.getBoundingClientRect();
-    if (!r.width || (r.width === hourglass.w && r.height === hourglass.h)) return;
-    hourglass.w = r.width;
-    hourglass.h = r.height;
-    const gap = opts.gap;
+  function hourglassCells(r, gap) {
     const wall = (gap * 1.1) / r.width;
     const top = [];
     const bottom = [];
@@ -318,6 +409,27 @@ export function createDotStory(userOptions = {}) {
         if (Math.abs(u - 0.5) < halfWidth(v) - wall) (v < 0.5 ? top : bottom).push([x, y, u, v]);
       }
     }
+    return { top, bottom };
+  }
+
+  function buildHourglassCells() {
+    const r = hourglass.el.getBoundingClientRect();
+    if (!r.width || (r.width === hourglass.w && r.height === hourglass.h && hourglass.n === N)) return;
+    hourglass.w = r.width;
+    hourglass.h = r.height;
+    hourglass.n = N;
+    // pick the grid so each bulb holds every dot in the pool (with a little headroom): the same dots,
+    // one per cell, no doubling up
+    let gap = opts.gap;
+    let cells = hourglassCells(r, gap);
+    for (let tries = 0; tries < 6; tries++) {
+      const cap = Math.min(cells.top.length, cells.bottom.length);
+      if (cap >= N * 1.04 && cap <= N * 1.35) break;
+      gap *= Math.sqrt(cap / (N * 1.15));
+      cells = hourglassCells(r, gap);
+    }
+    hourglass.gap = gap;
+    const { top, bottom } = cells;
     // the top bulb drains from the neck upwards; the bottom bulb fills as a mound from the base
     top.sort((a, b) => b[3] - a[3] || Math.abs(a[2] - 0.5) - Math.abs(b[2] - 0.5));
     bottom.sort((a, b) => (1 - a[3]) + Math.abs(a[2] - 0.5) * 0.7 - ((1 - b[3]) + Math.abs(b[2] - 0.5) * 0.7));
@@ -354,7 +466,7 @@ export function createDotStory(userOptions = {}) {
     const lines = one.size >= (o.stackBelow ?? 56) || !o.text.includes(' ') ? [one] : o.text.split(/\s+/).map(fit);
     const cap = o.capHeight ?? 0.72;
     const minCap = Math.min(...lines.map((l) => l.size)) * cap;
-    const gap = Math.max(o.minGap ?? 2.5, Math.min(o.maxGap ?? 7, minCap / (o.dotsPerCap ?? 15)));
+    const gap = Math.max(o.minGap ?? 2.5, Math.min(o.maxGap ?? 7, minCap / (o.dotsPerCap ?? 10)));
     const lineGap = gap * 4;
     const textH = lines.reduce((s, l) => s + l.size * cap, 0) + lineGap * (lines.length - 1);
     const H = Math.ceil(textH + gap * 2);
@@ -398,14 +510,19 @@ export function createDotStory(userOptions = {}) {
     ease = new Float32Array(n);
     fric = new Float32Array(n);
     rank = new Float32Array(n);
+    pos = new Int32Array(n);
     for (let i = 0; i < n; i++) {
-      px[i] = Math.random() * vw;
-      py[i] = vh + Math.random() * vh; // start below the screen; they gather into the first form
+      px[i] = Math.random() * vw; // scattered at first; they gather into the first form
+      py[i] = Math.random() * vh;
       ease[i] = 0.06 + Math.random() * 0.06;
       fric[i] = 0.8 + Math.random() * 0.12;
       // the order dots switch between forms: mostly in sequence, with some scatter
       rank[i] = Math.min(0.999, (i / n) * 0.82 + Math.random() * 0.18);
     }
+    // each dot's place in that order is also its slot in every form (character dot, sand cell,
+    // letter dot), so the same dots keep consistent places all the way down the page
+    const order = Array.from({ length: n }, (_, i) => i).sort((a, b) => rank[a] - rank[b]);
+    order.forEach((i, k) => (pos[i] = k));
   }
 
   function drawSprites() {
@@ -435,7 +552,7 @@ export function createDotStory(userOptions = {}) {
     if (form === 'character') {
       const m = character.count;
       if (!m) return false;
-      const j = Math.min(m - 1, Math.floor((i * m) / N));
+      const j = Math.min(m - 1, pos[i]);
       out.x = character.pts[j * 2];
       out.y = character.pts[j * 2 + 1];
       return true;
@@ -443,18 +560,19 @@ export function createDotStory(userOptions = {}) {
     if (form === 'hourglass') {
       const hg = ctxForm.hg;
       if (!hg) return false;
-      if (i < hg.kBottom) {
-        const j = i % hourglass.bottomN;
+      const k = pos[i];
+      if (k < hg.kBottom) {
+        const j = k % hourglass.bottomN;
         out.x = hg.left + hourglass.bottom[j * 2];
         out.y = hg.top + hourglass.bottom[j * 2 + 1];
-      } else if (i < hg.kBottom + hg.stream) {
+      } else if (k < hg.kBottom + hg.stream) {
         // a thin stream through the neck: each dot moves down a slot as the next one lands
-        const slot = i - hg.kBottom;
+        const slot = k - hg.kBottom;
         const t = (slot + 0.5) / hg.stream;
-        out.x = hg.left + hourglass.w / 2 + ((slot % 2) - 0.5) * opts.gap * 0.6;
+        out.x = hg.left + hourglass.w / 2 + ((slot % 2) - 0.5) * hourglass.gap * 0.6;
         out.y = hg.top + hg.surfaceY + (hg.neckY - hg.surfaceY) * t;
       } else {
-        const j = (i - hg.kBottom - hg.stream) % hourglass.topN;
+        const j = (k - hg.kBottom - hg.stream) % hourglass.topN;
         out.x = hg.left + hourglass.top[j * 2];
         out.y = hg.top + hourglass.top[j * 2 + 1];
       }
@@ -462,7 +580,7 @@ export function createDotStory(userOptions = {}) {
     }
     if (form === 'logo') {
       if (!logo.count) return false;
-      const j = i % logo.count;
+      const j = pos[i] % logo.count;
       out.x = ctxForm.logoLeft + logo.pts[j * 2];
       out.y = ctxForm.logoTop + logo.pts[j * 2 + 1];
       return true;
@@ -514,9 +632,32 @@ export function createDotStory(userOptions = {}) {
     let moving = false;
     // leaving the hourglass, the last sand to land leaves first, so the mound shrinks from the top
     const reverse = form.a === 'hourglass';
+    // entering it, dots fall in through the top opening and land in turn, deepest first
+    const pouring = form.b === 'hourglass' && form.blend > 0 && fctx.hg;
+    const W = 0.14;
+    const bPour = form.blend * (1 + W);
+    const inletX = fctx.hg ? fctx.hg.left + hourglass.w / 2 : 0;
+    const inletY = fctx.hg ? fctx.hg.top + HG.v0 * hourglass.h : 0;
     for (let i = 0; i < N; i++) {
-      const f = form.blend > 0 && (reverse ? 1 - rank[i] : rank[i]) < form.blend ? form.b : form.a;
-      if (targetFor(f, i, fctx)) {
+      let ok;
+      if (pouring) {
+        const r = rank[i];
+        if (r < bPour) {
+          ok = targetFor('hourglass', i, fctx);
+          if (r >= bPour - W) {
+            // in the air: a narrow stream falls from the opening and fans out only near the pile
+            const t = (bPour - r) / W;
+            out.x = inletX + (out.x - inletX) * t * t * t;
+            out.y = inletY + (out.y - inletY) * t;
+          }
+        } else {
+          ok = targetFor(form.a, i, fctx);
+        }
+      } else {
+        const f = form.blend > 0 && (reverse ? 1 - rank[i] : rank[i]) < form.blend ? form.b : form.a;
+        ok = targetFor(f, i, fctx);
+      }
+      if (ok) {
         if (reduce.matches) {
           px[i] = out.x;
           py[i] = out.y;
@@ -604,8 +745,12 @@ export function createDotStory(userOptions = {}) {
     hourglass.w = 0; // rebuild the sand cells for the new size
     buildFrames();
     const n = logo.count || opts.particles;
-    if (n !== N) allocate(n);
-    dotR = (opts.dotSize * Math.min(opts.gap, logo.count ? logo.gap : opts.gap)) / 2;
+    if (n !== N) {
+      allocate(n);
+      character.cellK = 0; // re-fit the dithering to the new pool
+    }
+    // one dot size everywhere, so it reads as the same dots in every form
+    dotR = opts.dotRadius || Math.min(1.6, Math.max(0.9, (logo.count ? logo.gap : opts.gap * 1.4) * 0.24));
     readColors();
     schedule();
   }

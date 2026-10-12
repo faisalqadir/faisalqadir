@@ -228,11 +228,17 @@ createScroll3DHero({
 ## Dot story: the character, an hourglass and the wordmark, all in dots
 
 When the animal, the transitions and the logo should all be one continuous field of dots, use
-`assets/dot-story.js` (template: `assets/template-dot-story.html`). The rigged model is rendered off
-screen every frame and sampled as dots, so the dotted animal keeps its real gait, scrubbed leaps and
-stillness. The same dots pour into an hourglass in a sticky dark panel while text boxes scroll by,
-drain through its neck, re-form the animal at its base, and finally settle into the brand wordmark at
-the footer. The cursor scatters them in every form.
+`assets/dot-story.js` (template: `assets/template-dot-story.html`). Exactly the same dots travel the
+whole page:
+
+1. The rigged model is rendered lit every frame and Atkinson-dithered into those dots, so the animal
+   looks 3D and keeps its real gait, scrubbed leaps and stillness.
+2. The dots fall through the top of an hourglass in a sticky dark panel while text boxes scroll by,
+   and drain through its neck.
+3. They re-form the animal at the hourglass's base.
+4. They settle into the brand wordmark at the footer.
+
+The cursor scatters them in every form.
 
 ```js
 createDotStory({
