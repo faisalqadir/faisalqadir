@@ -112,10 +112,9 @@ createDotStory({
   canvas: '#dots',
   character: { url: 'animal.glb', animation: { idle, walk, run, still: 'pose', face: { idle: 75 } }, tilt: 8 },
   hourglass: { anchor: '#hourglass', panel: '#panel' },
-  logo: { anchor: '#logo', text: 'BRAND NAME' },   // plus fontFamily, fontWeight, fontStretch, dotsPerCap…
+  logo: { anchor: '#logo', text: 'BRAND NAME', dotsPerCap: 10 }, // its dot count is the pool size; plus fontFamily, fontWeight, fontStretch…
   keyframes: [...],
   responsive: { '(max-width: 767px)': { gap: 3, keyframes: [...] } },
-  logo: { anchor: '#logo', text: 'BRAND NAME', dotsPerCap: 10 }, // its dot count is the pool size
   contrast: 1.9,     // tone stretch before dithering: higher = more 3D, lower = flatter
   dotRadius: null,   // one size for every form (default: from the wordmark's spacing)
   gap: 4,            // starting grid for the sand (it adjusts to hold exactly the pool)
