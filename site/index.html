@@ -116,13 +116,13 @@
   /* the finale: the call to action and the footer share exactly one screen; the dotted
      SNOLEP TECHNOLOGIES sits just above the footer */
   .finale { min-height: 100vh; min-height: 100svh; display: flex; flex-direction: column; background: var(--night); }
-  .cta { position: relative; flex: 1; color: var(--frost); display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; text-align: center; }
+  .cta { position: relative; flex: 1; color: var(--frost); display: flex; flex-direction: column; justify-content: center; gap: clamp(24px, 5vh, 56px); padding: 76px 0 4vh; overflow: hidden; text-align: center; }
   .rings { position: absolute; inset: -30% -10%; pointer-events: none;
            background: repeating-radial-gradient(circle at 50% 42%, transparent 0 78px, var(--night-line) 79px 80px); }
-  .cta-inner { position: relative; display: grid; justify-items: center; gap: 16px; padding: 104px 24px 0; }
+  .cta-inner { position: relative; display: grid; justify-items: center; gap: 16px; padding: 0 24px; }
   .cta h2 { font: 900 clamp(36px, 5vw, 84px)/.92 var(--display); font-stretch: 100%; text-transform: uppercase; max-width: 14ch; text-wrap: balance; }
   .cta p { max-width: 40ch; font-size: 17px; color: var(--aqua); }
-  .logo-wrap { position: relative; width: min(1120px, 100% - 48px); margin: 0 auto 28px; }
+  .logo-wrap { position: relative; width: min(1120px, 100% - 48px); margin: 0 auto; }
   .logo-slot { width: 100%; height: 9vw; }
   #perch-5 { left: 72%; }
   .cta-button { display: none; }
@@ -174,7 +174,7 @@
     .projects { padding: 0 24px; }
     .project { min-height: 70vh; padding: 8vh 0; align-content: start; gap: 16px; }
     .project p { font-size: 16px; }
-    .cta-inner { padding-top: 92px; gap: 14px; }
+    .cta-inner { gap: 14px; }
     .cta p { font-size: 15px; max-width: 30ch; }
     .logo-slot { height: 22vw; }
     footer .wrap { padding: 14px 0 16px; }
@@ -444,17 +444,25 @@
     { at, after: to, clip: LEAP.clip, clipTime: LEAP.to, ease: 'linear' },
     { at, after: to, clipTime: 0 }, // landed: no clip, so it stands still on the word until the next leap
   ];
-  const story = ({ big, s, inside, apex, apex0, dive, out, hop, land }) => {
+  const story = ({ big, s, inside, apex, off0, dive, out, hop, land }) => {
     const perch = (i) => `#perch-${i}`;
     const k = [
-      // the picture, then its dots, then the animal standing where the leopard sits
+      // the picture turns to dots where it stands...
       { at: 0, form: 'image', reveal: 0, anchor: perch(0), align: 'bottom', size: big, pitch: 0 },
       { at: '#hero', after: 0.015, reveal: 0, ease: 'linear' },
-      { at: '#hero', after: 0.09, reveal: 1, form: 'image', ease: 'easeOut' },
-      { at: '#hero', after: 0.21, form: 'character', ease: 'easeInOut' },
-      { at: '#p1', after: -0.78, anchor: perch(0), align: 'bottom', size: big, pitch: 0 },
-      ...leap('#p1', -0.78, -0.4, apex0, null),
+      { at: '#hero', after: 0.09, reveal: 1, ease: 'easeOut' },
+      // ...and the leap off the logo, to the left, is what gathers them into the animal: it takes
+      // shape in the air on the way down to the first word
+      { at: '#hero', after: 0.1, anchor: perch(0), align: 'bottom', size: big, pitch: 0 },
+      { at: '#hero', after: 0.1, clip: LEAP.clip, clipTime: LEAP.from },
+      { at: '#hero', after: 0.12, form: 'image' },
+      { at: '#hero', after: 0.42, form: 'character', ease: 'easeInOut' },
+      { at: '#hero', after: 0.2, pitch: 10, ease: 'spline' },
+      { at: '#hero', after: 0.3, anchor: perch(0), align: 'bottom', x: off0[0], y: off0[1], size: (big + s) / 2, ease: 'spline' },
+      { at: '#hero', after: 0.47, pitch: -18, ease: 'spline' },
       { at: '#p1', after: -0.4, anchor: perch(1), align: 'bottom', size: s, pitch: 0, ease: 'spline' },
+      { at: '#p1', after: -0.4, clip: LEAP.clip, clipTime: LEAP.to, ease: 'linear' },
+      { at: '#p1', after: -0.4, clipTime: 0 },
     ];
     // rides each word, then bounds to the next as it comes up
     for (let i = 1; i < 4; i++) {
@@ -505,11 +513,11 @@
     hourglass: { anchor: '#hourglass', panel: '#panel', dive: DIVE },
     inverse: '.finale',
     logo: { anchor: '#logo', text: 'SNOLEP TECHNOLOGIES', dotsPerCap: 13 }, // its dot count is the pool size
-    keyframes: story({ big: 0.56, s: 0.4, inside: 0.3, apex: [0, 0.72], apex0: [-0.3, 0.8], dive: [-0.15, 0.7], out: [1.5, 2.0], hop: [-0.75, -0.4], land: -0.55 }),
+    keyframes: story({ big: 0.56, s: 0.4, inside: 0.3, apex: [0, 0.72], off0: [-0.6, 0.12], dive: [-0.15, 0.7], out: [1.5, 2.0], hop: [-0.75, -0.4], land: -0.55 }),
     responsive: {
       '(max-width: 767px)': {
         gap: 3,
-        keyframes: story({ big: 0.68, s: 0.48, inside: 0.29, apex: [0, 0.7], apex0: [-0.1, 0.8], dive: [0.1, 0.6], out: [1.55, 2.05], hop: [-0.67, -0.35], land: -0.4 }),
+        keyframes: story({ big: 0.68, s: 0.48, inside: 0.29, apex: [0, 0.7], off0: [-0.45, 0.06], dive: [0.1, 0.6], out: [1.55, 2.05], hop: [-0.67, -0.35], land: -0.4 }),
       },
     },
   });
