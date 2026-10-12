@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Snolep Technologies</title>
+<meta name="description" content="Snolep Technologies builds software the way a snow leopard moves: elegant, patient, precise and resilient.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100,800;100,900;125,800;125,900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+
+<style>
+  /* Snolep palette: deep navy for type and the dark sections, mint snow for the page, teal saved for
+     "work with us". */
+  :root {
+    --navy: #002735;          /* type on light; the hourglass panel and the call to action */
+    --teal: #00a6a2;          /* the accent */
+    --aqua: #addcda;          /* lines, soft accents, copy on navy */
+    --mint: #e7f5f4;          /* the page */
+    --white: #fffeff;
+    --snow: var(--mint);
+    --ink: var(--navy);
+    --muted: #4b6a74;         /* navy softened towards the mint, for secondary copy */
+    --line: var(--aqua);
+    --granite: var(--navy);
+    --night: var(--navy);
+    --night-line: rgba(173, 220, 218, 0.09);
+    --frost: var(--mint);     /* dots and type on navy */
+    --amber: var(--teal);
+    --display: "Archivo", "Arial Black", Impact, system-ui, sans-serif;
+    --body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --dots: var(--ink);
+    --panel-dots: var(--frost);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { overflow-x: clip; }
+  body { background: var(--snow); color: var(--ink); font: 400 16px/1.55 var(--body); -webkit-font-smoothing: antialiased; }
+  a { color: inherit; }
+  :focus-visible { outline: 2px solid var(--teal); outline-offset: 4px; }
+
+  /* the one canvas that draws every dot */
+  .dot-story { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 5; pointer-events: none; color: var(--dots); }
+
+  .wrap { width: min(1320px, 100% - 48px); margin-inline: auto; }
+  .label { font: 500 12px/1.2 var(--mono); letter-spacing: .14em; text-transform: uppercase; }
+
+  /* header: navy on the mint, mint wherever a dark section sits under it (set per item by the script) */
+  .site-head { position: fixed; top: 0; left: 0; right: 0; z-index: 10; color: var(--navy); }
+  .site-head a { transition: color .25s ease; }
+  .site-head .on-dark { color: var(--mint); }
+  .site-head .wrap { display: flex; align-items: center; justify-content: space-between; height: 76px; }
+  .brand { font: 900 16px/1 var(--display); font-stretch: 125%; letter-spacing: .02em; text-decoration: none; }
+  .site-head nav { display: flex; gap: 28px; }
+  .site-head nav a { font: 500 12px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; text-decoration: none; }
+
+  /* principles: one big word per screen, alternating sides; the snow leopard leaps between them */
+  .principle { min-height: 100vh; display: grid; align-content: center; }
+  .principle .wrap { display: grid; gap: 22px; }
+  .principle .label { color: var(--muted); }
+  .word { font: 900 clamp(40px, 12vw, 230px)/.86 var(--display); font-stretch: 100%; text-transform: uppercase; letter-spacing: -.02em; }
+  .word-in { position: relative; display: inline-block; }
+  .perch { position: absolute; top: .1em; width: 1px; height: 1px; }   /* where the fox stands on the word */
+  .principle .note { max-width: 34ch; font-size: 19px; color: var(--muted); }
+  .principle.left .perch { left: 66%; }
+  .principle.right .wrap { justify-items: end; text-align: right; }
+  .principle.right .perch { left: 34%; }
+  .intro { font: 500 13px/1.2 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+
+  /* work: the hourglass in a sticky dark panel, projects scrolling past it */
+  .work { display: grid; grid-template-columns: minmax(0, 46%) minmax(0, 1fr); }
+  .hg-panel { position: sticky; top: 0; height: 100vh; background: var(--granite); display: grid; place-items: center; overflow: hidden; }
+  .hourglass { position: relative; width: min(56%, 29vh); aspect-ratio: 2 / 3; }
+  .hourglass svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .hourglass .glass { fill: none; stroke: rgba(173, 220, 218, .4); stroke-width: .8; vector-effect: non-scaling-stroke; }
+  .hourglass .frame { fill: #1f4c5b; }
+  .hg-mark { position: absolute; left: 50%; width: 1px; height: 1px; }
+  .hg-mark.top { top: 0; }
+  .hg-mark.bottom { top: 100%; }
+  .panel-label { position: absolute; left: 32px; bottom: 30px; color: var(--aqua); opacity: .75; }
+  .projects { padding: 0 6vw; }
+  .project { min-height: 100vh; display: grid; align-content: center; gap: 22px; max-width: 560px; }
+  .project-img { aspect-ratio: 4 / 3; border-radius: 4px; position: relative; overflow: hidden; display: grid; place-items: end start; padding: 16px;
+                 background:
+                   radial-gradient(circle, rgba(255, 255, 255, .28) 1.1px, transparent 1.6px) 0 0 / 14px 14px,
+                   radial-gradient(120% 90% at var(--fx, 70%) var(--fy, 30%), var(--c1), transparent 60%),
+                   linear-gradient(135deg, var(--c2), var(--c3)); }
+  .project-img span { font: 500 11px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: rgba(255, 254, 255, .8); }
+  .project-link { justify-self: start; display: inline-flex; align-items: baseline; gap: 12px; text-decoration: none;
+                  font: 900 clamp(24px, 2.4vw, 38px)/1 var(--display); font-stretch: 125%; text-transform: uppercase;
+                  background: linear-gradient(var(--ink), var(--ink)) 0 100% / 0 2px no-repeat; padding-bottom: 6px; transition: background-size .35s ease; }
+  .project-link:hover, .project-link:focus-visible { background-size: 100% 2px; }
+  .project-link .arrow { font: 500 .7em/1 var(--mono); transition: transform .35s ease; }
+  .project-link:hover .arrow, .project-link:focus-visible .arrow { transform: translate(4px, -4px); }
+  .project .meta { color: var(--muted); }
+  .project p { font-size: 18px; color: var(--muted); max-width: 40ch; }
+
+  /* call to action: night, rings, and the cursor becomes "work with us" */
+  .cta { position: relative; min-height: 112vh; background: var(--night); color: var(--frost); display: grid; place-items: center; overflow: hidden; text-align: center; }
+  .rings { position: absolute; inset: -20%; pointer-events: none;
+           background: repeating-radial-gradient(circle at 50% 50%, transparent 0 94px, var(--night-line) 95px 96px); }
+  .cta-inner { position: relative; display: grid; justify-items: center; gap: 26px; padding: 16vh 24px 12vh; width: 100%; }
+  .cta h2 { font: 900 clamp(44px, 7.4vw, 132px)/.9 var(--display); font-stretch: 100%; text-transform: uppercase; max-width: 10ch; text-wrap: balance; }
+  .cta p { max-width: 38ch; font-size: 18px; color: var(--aqua); }
+  .logo-slot { width: min(1120px, 100%); height: 9vw; margin-top: 4vh; }
+  .cta-button { display: none; }
+  .cta-cursor { position: fixed; left: 0; top: 0; z-index: 9; width: 136px; height: 136px; margin: -68px 0 0 -68px; border-radius: 50%;
+                background: var(--teal); color: var(--navy); display: grid; place-items: center; text-align: center; pointer-events: none;
+                font: 900 15px/1.05 var(--display); font-stretch: 125%; text-transform: uppercase; letter-spacing: .02em;
+                transform: translate3d(var(--x, -200px), var(--y, -200px), 0) scale(var(--s, 0)); transition: none; }
+  @media (pointer: fine) {
+    .cta, .cta a { cursor: none; }
+  }
+  @media (pointer: coarse) {
+    .cta-cursor { display: none; }
+    .cta-button { display: grid; place-items: center; width: 132px; height: 132px; border-radius: 50%; background: var(--teal); color: var(--navy);
+                  text-decoration: none; font: 900 15px/1.05 var(--display); font-stretch: 125%; text-transform: uppercase; }
+  }
+  .cta-button:focus-visible { display: grid; place-items: center; width: 132px; height: 132px; border-radius: 50%; background: var(--teal); color: var(--navy); text-decoration: none; }
+
+  footer { background: var(--night); color: var(--aqua); border-top: 1px solid rgba(173, 220, 218, .14); }
+  footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px 28px; padding: 26px 0 32px; font: 500 11px/1.5 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+  footer nav { display: flex; gap: 22px; flex-wrap: wrap; }
+  footer a { text-decoration: none; }
+  .credit { flex-basis: 100%; text-transform: none; letter-spacing: 0; font: 400 12px/1.5 var(--body); color: #6f9aa1; }
+
+  @media (max-width: 767px) {
+    .site-head nav a:not(:last-child) { display: none; }
+    .word { font-size: 12.5vw; }
+    .principle .note { font-size: 16px; max-width: 26ch; }
+    .principle .intro { order: 3; }   /* below the word on phones, clear of the fox standing on it */
+    .work { grid-template-columns: 1fr; }
+    .hg-panel { height: 62vh; z-index: 1; }
+    .hourglass { width: min(46%, 26vh); }
+    .panel-label { left: 20px; bottom: 16px; }
+    .projects { padding: 0 24px; }
+    .project { min-height: 70vh; padding: 8vh 0; align-content: start; gap: 16px; }
+    .project p { font-size: 16px; }
+    .logo-slot { height: 22vw; }
+  }
+</style>
+</head>
+<body>
+<canvas id="dots" class="dot-story" aria-hidden="true"></canvas>
+
+<header class="site-head">
+  <div class="wrap">
+    <a class="brand" href="#top">SNOLEP</a>
+    <nav aria-label="Main"><a href="#p1">Principles</a><a href="#work">Work</a><a href="#cta">Work with us</a></nav>
+  </div>
+</header>
+
+<main id="top">
+  <section class="principle left" id="p1">
+    <div class="wrap">
+      <span class="intro">Snolep Technologies · How we move</span>
+      <h1 class="word"><span class="word-in">Elegance<span class="perch" id="perch-1"></span></span></h1>
+      <p class="note">Nothing wasted. Every screen, every line of code earns its place.</p>
+    </div>
+  </section>
+
+  <section class="principle right" id="p2">
+    <div class="wrap">
+      <span class="label">02</span>
+      <h2 class="word"><span class="word-in">Patience<span class="perch" id="perch-2"></span></span></h2>
+      <p class="note">We read the ground before we move, so we only have to move once.</p>
+    </div>
+  </section>
+
+  <section class="principle left" id="p3">
+    <div class="wrap">
+      <span class="label">03</span>
+      <h2 class="word"><span class="word-in">Precision<span class="perch" id="perch-3"></span></span></h2>
+      <p class="note">One leap, landed. Measured twice, shipped once.</p>
+    </div>
+  </section>
+
+  <section class="principle right" id="p4">
+    <div class="wrap">
+      <span class="label">04</span>
+      <h2 class="word"><span class="word-in">Resilience<span class="perch" id="perch-4"></span></span></h2>
+      <p class="note">Built for thin air and hard ground. Systems that keep running at altitude.</p>
+    </div>
+  </section>
+
+  <section class="work" id="work">
+    <div class="hg-panel" id="panel">
+      <div class="hourglass" id="hourglass">
+        <svg viewBox="0 0 100 150" aria-hidden="true">
+          <rect class="frame" x="4" y="0" width="27" height="4"></rect>
+          <rect class="frame" x="69" y="0" width="27" height="4"></rect>
+          <rect class="frame" x="4" y="146" width="27" height="4"></rect>
+          <rect class="frame" x="69" y="146" width="27" height="4"></rect>
+          <rect class="frame" x="6" y="4" width="1.2" height="142"></rect>
+          <rect class="frame" x="92.8" y="4" width="1.2" height="142"></rect>
+          <path class="glass" data-hourglass-glass d=""></path>
+        </svg>
+        <span class="hg-mark top" id="hg-top"></span>
+        <span class="hg-mark bottom" id="hg-bottom"></span>
+      </div>
+      <span class="label panel-label">Selected work</span>
+    </div>
+    <div class="projects">
+      <!-- Placeholder projects: swap in real names, images, links and lines. -->
+      <article class="project">
+        <div class="project-img" style="--c1:#00a6a2; --c2:#002735; --c3:#0b4a55; --fx:72%; --fy:28%"><span>Project image</span></div>
+        <a class="project-link" href="#">Project one <span class="arrow">↗</span></a>
+        <span class="label meta">Logistics · Placeholder</span>
+        <p>A short line on what we built, for whom, and what changed because of it.</p>
+      </article>
+      <article class="project">
+        <div class="project-img" style="--c1:#addcda; --c2:#0b3a47; --c3:#00a6a2; --fx:30%; --fy:35%"><span>Project image</span></div>
+        <a class="project-link" href="#">Project two <span class="arrow">↗</span></a>
+        <span class="label meta">Booking platform · Placeholder</span>
+        <p>A short line on what we built, for whom, and what changed because of it.</p>
+      </article>
+      <article class="project">
+        <div class="project-img" style="--c1:#e7f5f4; --c2:#002735; --c3:#2c6d78; --fx:60%; --fy:70%"><span>Project image</span></div>
+        <a class="project-link" href="#">Project three <span class="arrow">↗</span></a>
+        <span class="label meta">Operations dashboard · Placeholder</span>
+        <p>A short line on what we built, for whom, and what changed because of it.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="cta" id="cta">
+    <div class="rings" aria-hidden="true"></div>
+    <div class="cta-inner">
+      <h2>Ready to make the leap?</h2>
+      <p>Tell us where you're headed. We'll read the ground, plan the jump and land it with you.</p>
+      <a class="cta-button" id="cta-link" href="mailto:hello@example.com">Work<br>with us</a>
+      <div class="logo-slot" id="logo" role="img" aria-label="Snolep Technologies"></div>
+    </div>
+    <div class="cta-cursor" aria-hidden="true">Work<br>with us</div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 Snolep Technologies</span>
+    <nav aria-label="Legal"><a href="#">Privacy</a><a href="#">Terms</a></nav>
+    <p class="credit">Fox model (a stand-in for the snow leopard) by PixelMannen (CC0); rigging and animation by tomkranis (CC BY 4.0); glTF conversion by @AsoboStudio and @scurest (CC BY 4.0), from the Khronos glTF Sample Assets.</p>
+  </div>
+</footer>
+
+<script>
+  // header items turn mint over the dark sections
+  (() => {
+    const items = [...document.querySelectorAll('.site-head .brand, .site-head nav a')];
+    const dark = [document.getElementById('panel'), document.getElementById('cta'), document.querySelector('footer')];
+    let queued = false;
+    const check = () => {
+      queued = false;
+      const rects = dark.map((el) => el.getBoundingClientRect());
+      for (const el of items) {
+        const r = el.getBoundingClientRect();
+        const x = r.left + r.width / 2, y = r.top + r.height / 2;
+        el.classList.toggle('on-dark', rects.some((d) => x >= d.left && x <= d.right && y >= d.top && y <= d.bottom));
+      }
+    };
+    const queue = () => { if (!queued) { queued = true; requestAnimationFrame(check); } };
+    addEventListener('scroll', queue, { passive: true });
+    addEventListener('resize', queue);
+    check();
+  })();
+
+  // "Work with us" follows the cursor through the call to action; a click anywhere there goes to the link
+  (() => {
+    const cta = document.getElementById('cta');
+    const dot = cta.querySelector('.cta-cursor');
+    const link = document.getElementById('cta-link');
+    const fine = matchMedia('(pointer: fine)');
+    const still = matchMedia('(prefers-reduced-motion: reduce)');
+    let x = -200, y = -200, tx = x, ty = y, s = 0, ts = 0, raf = 0;
+    const draw = () => {
+      raf = 0;
+      const k = still.matches ? 1 : 0.22;
+      x += (tx - x) * k; y += (ty - y) * k; s += (ts - s) * (still.matches ? 1 : 0.18);
+      dot.style.setProperty('--x', `${x.toFixed(1)}px`);
+      dot.style.setProperty('--y', `${y.toFixed(1)}px`);
+      dot.style.setProperty('--s', s.toFixed(3));
+      if (Math.abs(tx - x) + Math.abs(ty - y) > 0.3 || Math.abs(ts - s) > 0.002) raf = requestAnimationFrame(draw);
+    };
+    const go = () => { if (!raf) raf = requestAnimationFrame(draw); };
+    cta.addEventListener('pointermove', (e) => { if (!fine.matches) return; tx = e.clientX; ty = e.clientY; if (!ts) { x = tx; y = ty; } ts = 1; go(); });
+    cta.addEventListener('pointerleave', () => { ts = 0; go(); });
+    cta.addEventListener('click', (e) => { if (fine.matches && !e.target.closest('a')) link.click(); });
+  })();
+</script>
+
+<script type="module">
+  import { createDotStory } from './js/dot-story.js';
+
+  // Credit the fox's authors wherever you use it (see the footer). Swap in the snow leopard here.
+  const MODEL = './models/fox.glb';
+
+  // One story, tuned per screen size.
+  const story = ({ s, inside, apexY, out, runTo }) => {
+    const words = ['#p1', '#p2', '#p3', '#p4'];
+    const perch = (i) => `#perch-${i + 1}`;
+    const k = [{ at: 0, form: 'character', anchor: perch(0), align: 'bottom', size: s, pitch: 0 }];
+    // stands on a word and rides with it, then leaps to the next as it scrolls up (one scrubbed bound)
+    for (let i = 0; i < 3; i++) {
+      const next = words[i + 1];
+      k.push(
+        { at: next, after: -0.9, anchor: perch(i), align: 'bottom', pitch: 0 },
+        { at: next, after: -0.9, clip: 'Run', clipTime: 0 },
+        { at: next, after: -0.75, pitch: 14, ease: 'spline' },
+        { at: next, after: -0.55, x: 0, y: apexY, ease: 'spline' },
+        { at: next, after: -0.35, pitch: -16, ease: 'spline' },
+        { at: next, after: -0.2, anchor: perch(i + 1), align: 'bottom', pitch: 0, ease: 'spline' },
+        { at: next, after: -0.2, clip: 'Run', clipTime: 1, ease: 'linear' },
+      );
+    }
+    k.push(
+      // from the last word, one pounce head first into the hourglass as the glass settles
+      { at: '#work', after: -0.9, anchor: perch(3), align: 'bottom', pitch: 0 },
+      { at: '#work', after: -0.9, clip: 'Run', clipTime: 0 },
+      { at: '#work', after: -0.7, pitch: 14, ease: 'spline' },
+      { at: '#work', after: -0.5, x: -0.15, y: apexY, size: s * 0.9, ease: 'spline' },
+      { at: '#work', after: -0.3, pitch: -30, ease: 'spline' },
+      { at: '#work', after: 0, anchor: '#hg-top', align: 'pour', pour: -0.2, size: inside, pitch: -70, ease: 'spline' },
+      { at: '#work', after: 0, clip: 'Run', clipTime: 1.5, ease: 'linear' },
+      { at: '#work', after: 0.75, anchor: '#hg-top', align: 'pour', pour: 1.35, ease: 'linear' },
+      // the sand runs through the neck as the projects go by
+      { at: '#work', after: 0.2, drain: 0 },
+      { at: '#work', after: out[0] - 0.05, drain: 1, ease: 'linear' },
+      // out of the bottom, nose first...
+      { at: '#work', after: out[0], anchor: '#hg-bottom', align: 'emerge', emerge: -0.35, size: inside, pitch: -70, clip: 'Run', clipTime: 1.5 },
+      { at: '#work', after: out[1], anchor: '#hg-bottom', align: 'emerge', emerge: 1, size: inside, pitch: -70, ease: 'linear' },
+      // ...into the night of the call to action, where it dissolves into the name
+      { at: '#cta', after: -0.35, x: runTo[0], y: runTo[1], size: s, pitch: 0, ease: 'spline' },
+      { at: '#cta', after: -0.35, clip: 'Run', clipTime: 3, ease: 'linear' },
+      { at: '#cta', after: -0.35, form: 'character' },
+      { at: '#cta', after: 0.1, form: 'logo', ease: 'easeOut' },
+    );
+    return k;
+  };
+
+  createDotStory({
+    canvas: '#dots',
+    character: {
+      url: MODEL,
+      animation: { idle: 'Survey', walk: 'Walk', run: 'Run', still: 'pose', face: { moving: 90, idle: 75, start: 1 } },
+    },
+    hourglass: { anchor: '#hourglass', panel: '#panel' },
+    inverse: '#cta',
+    logo: { anchor: '#logo', text: 'SNOLEP TECHNOLOGIES', dotsPerCap: 10 }, // its dot count is the pool size
+    keyframes: story({ s: 0.3, inside: 0.22, apexY: 0.62, out: [1.5, 2.0], runTo: [-0.7, -0.35] }), // runs into the left margin, clear of the headline
+    responsive: {
+      '(max-width: 767px)': {
+        gap: 3,
+        keyframes: story({ s: 0.34, inside: 0.21, apexY: 0.55, out: [1.55, 2.05], runTo: [0.1, -0.78] }), // below the headline
+      },
+    },
+  });
+</script>
+</body>
+</html>

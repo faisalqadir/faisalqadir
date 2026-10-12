@@ -62,6 +62,7 @@ const DEFAULTS = {
   canvas: '#dots', // a full-viewport canvas (position: fixed); its CSS `color` is the dot colour
   character: null, // { url | buffer, animation: { idle, walk, run, still, face }, rotate, tilt }
   hourglass: null, // { anchor: '#hourglass', panel: '#panel', dive: -70, crumble: 0.16 }
+  inverse: null, // selector for dark areas where dots use --panel-dots (the hourglass panel always does)
   logo: null, // { anchor: '#logo', text: 'ACME', fontFamily, fontWeight, fontStretch, ... }
   keyframes: [],
   responsive: {}, // { '(max-width: 767px)': { keyframes: [...] } }
@@ -92,6 +93,7 @@ export function createDotStory(userOptions = {}) {
   let N = 0, px, py, vx, vy, ease, fric, spread, jit, pos, byPos, wordOrder, state, ptx, pty;
   let dotR = 1.3, spriteR = 0, colors = { ink: '#222', panel: '#eee' };
   let debugEl = null;
+  let inverseAreas = [];
 
   /* ---------- keyframes ---------- */
 
@@ -835,7 +837,7 @@ export function createDotStory(userOptions = {}) {
 
   /* ---------- the logo ---------- */
 
-  const logo = { el: null, pts: new Float32Array(0), count: 0, gap: 4, width: 0 };
+  const logo = { el: null, pts: new Float32Array(0), count: 0, gap: 4, width: 0, lastLeft: 0, lastTop: null };
 
   function setFont(c, size, o) {
     c.font = `${o.fontWeight || 800} ${size}px "${o.fontFamily || 'Archivo'}", "Arial Black", sans-serif`;
@@ -1071,11 +1073,19 @@ export function createDotStory(userOptions = {}) {
     } else hourglass.lastTop = null;
     let logoLeft = 0;
     let logoTop = 0;
+    let ldx = 0;
+    let ldy = 0;
     if (logo.el && (form.a === 'logo' || form.b === 'logo')) {
       const r = logo.el.getBoundingClientRect();
       logoLeft = r.left;
       logoTop = r.top;
-    }
+      if (logo.lastTop !== null) {
+        ldx = r.left - logo.lastLeft;
+        ldy = r.top - logo.lastTop;
+      }
+      logo.lastLeft = r.left;
+      logo.lastTop = r.top;
+    } else logo.lastTop = null;
 
     // physics: follow the target, spring back from the pointer
     const R = opts.pointer.radius;
@@ -1110,7 +1120,10 @@ export function createDotStory(userOptions = {}) {
       // Carry: a dot moves with its target, so the character and the sand hold together however fast
       // they travel; the spring below only settles what the pointer (or a change of form) displaced.
       const was = state[i];
-      if (was >= 0 && was !== LOGO && st !== LOGO) {
+      if (was === LOGO && st === LOGO) {
+        px[i] += ldx; // a formed logo moves with the page, so it holds together wherever it sits
+        py[i] += ldy;
+      } else if (was >= 0 && was !== LOGO && st !== LOGO) {
         if (was === st && (st === TOP || st === BOTTOM)) {
           px[i] += gdx; // sand moves with the glass and settles into its next cell
           py[i] += gdy;
@@ -1170,25 +1183,23 @@ export function createDotStory(userOptions = {}) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     for (let i = 0; i < N; i++) ctx.drawImage(sprites.ink, px[i] * dpr - spriteR, py[i] * dpr - spriteR);
-    // inside the dark panel the dots switch to the panel colour
-    const panel = hourglass.panel;
-    if (panel) {
-      const r = panel.getBoundingClientRect();
-      if (r.bottom > 0 && r.top < vh) {
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(r.left * dpr, r.top * dpr, r.width * dpr, r.height * dpr);
-        ctx.clip();
-        ctx.clearRect(r.left * dpr, r.top * dpr, r.width * dpr, r.height * dpr);
-        for (let i = 0; i < N; i++) {
-          const x = px[i];
-          const y = py[i];
-          if (x > r.left - 4 && x < r.right + 4 && y > r.top - 4 && y < r.bottom + 4) {
-            ctx.drawImage(sprites.panel, x * dpr - spriteR, y * dpr - spriteR);
-          }
+    // inside dark areas (the hourglass panel, and any `inverse` element) the dots use the panel colour
+    for (const area of inverseAreas) {
+      const r = area.getBoundingClientRect();
+      if (r.bottom <= 0 || r.top >= vh || !r.width) continue;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(r.left * dpr, r.top * dpr, r.width * dpr, r.height * dpr);
+      ctx.clip();
+      ctx.clearRect(r.left * dpr, r.top * dpr, r.width * dpr, r.height * dpr);
+      for (let i = 0; i < N; i++) {
+        const x = px[i];
+        const y = py[i];
+        if (x > r.left - 4 && x < r.right + 4 && y > r.top - 4 && y < r.bottom + 4) {
+          ctx.drawImage(sprites.panel, x * dpr - spriteR, y * dpr - spriteR);
         }
-        ctx.restore();
       }
+      ctx.restore();
     }
   }
 
@@ -1201,6 +1212,7 @@ export function createDotStory(userOptions = {}) {
 
   function layout() {
     opts = computeOptions();
+    inverseAreas = [...new Set([hourglass.panel, ...(opts.inverse ? document.querySelectorAll(opts.inverse) : [])].filter(Boolean))];
     vw = window.innerWidth;
     vh = window.innerHeight;
     dpr = Math.min(window.devicePixelRatio || 1, 2);

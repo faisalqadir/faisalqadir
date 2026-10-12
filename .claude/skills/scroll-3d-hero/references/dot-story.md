@@ -53,7 +53,8 @@ Technologies, with the Khronos sample fox standing in for the final animal).
   mound just in time to reach its place as that place comes through the opening.
 - **Into the wordmark.** The lowest dots leave first, so the character streams down into the name,
   which builds up from left to right.
-- **Colours.** Dots use the canvas's CSS `color`. Inside the dark panel they switch to `--panel-dots`.
+- **Colours.** Dots use the canvas's CSS `color`. Inside the dark panel, and any `inverse` element,
+  they switch to `--panel-dots`. A formed wordmark moves with the page, so it can sit mid-page.
 - **Fast scrolls.** The story eases after the scrollbar but never trails it by more than `maxLag`
   (0.12 of a screen), so on a flick the character keeps in step with the page. The sand can only
   move so fast: on a flick the pour, drain and emerge fall behind and catch up a moment after the
@@ -146,6 +147,7 @@ createDotStory({
   keyframes: [...],
   responsive: { '(max-width: 767px)': { gap: 3, keyframes: [...] } },
   contrast: 1.9,     // tone stretch before dithering: higher = more 3D, lower = flatter
+  inverse: '#cta',   // dark areas (besides the hourglass panel) where dots switch to --panel-dots
   dotRadius: null,   // one size for every form (default: from the wordmark's spacing)
   gap: 4,            // starting grid for the sand (it adjusts so each bulb holds the whole pool)
   damping: 8, maxLag: 0.12, // eases after the scrollbar, but never more than this many screens behind

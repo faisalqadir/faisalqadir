@@ -104,17 +104,22 @@ try {
           c.height = innerHeight * scale;
           const x = c.getContext('2d');
           x.scale(scale, scale);
-          x.fillStyle = '#f4f4f1';
+          // the page's own block colours, then a translucent box where each piece of copy is
+          x.fillStyle = getComputedStyle(document.body).backgroundColor;
           x.fillRect(0, 0, innerWidth, innerHeight);
-          x.fillStyle = '#e2e2dc';
+          document.querySelectorAll('body *').forEach((el) => {
+            const bg = getComputedStyle(el).backgroundColor;
+            if (!bg || bg === 'transparent' || /rgba\(.*,\s*0\)$/.test(bg) || el === dots) return;
+            const r = el.getBoundingClientRect();
+            if (r.bottom > 0 && r.top < innerHeight && r.width * r.height > 2000) {
+              x.fillStyle = bg;
+              x.fillRect(r.left, r.top, r.width, r.height);
+            }
+          });
+          x.fillStyle = 'rgba(128, 128, 128, 0.18)';
           document.querySelectorAll('h1, h2, h3, p').forEach((el) => {
             const r = el.getBoundingClientRect();
             if (r.bottom > 0 && r.top < innerHeight) x.fillRect(r.left, r.top, r.width, r.height);
-          });
-          x.fillStyle = '#0e0e0e';
-          document.querySelectorAll('#panel, .hg-panel').forEach((el) => {
-            const r = el.getBoundingClientRect();
-            x.fillRect(r.left, r.top, r.width, r.height);
           });
           x.drawImage(dots, 0, 0, innerWidth, innerHeight);
           x.fillStyle = 'red';
