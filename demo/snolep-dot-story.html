@@ -44,7 +44,7 @@
   /* hourglass: sticky dark panel on the left, text boxes scrolling on the right */
   .hg-section { display: grid; grid-template-columns: minmax(0, 46%) minmax(0, 1fr); }
   .hg-panel { position: sticky; top: 0; height: 100vh; background: var(--panel); display: grid; place-items: center; overflow: hidden; }
-  .hourglass { position: relative; width: min(64%, 46vh); aspect-ratio: 2 / 3; }
+  .hourglass { position: relative; width: min(56%, 29vh); aspect-ratio: 2 / 3; }   /* room above and below for the fox */
   .hourglass svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
   .hourglass .glass { fill: none; stroke: var(--panel-line); stroke-width: .8; vector-effect: non-scaling-stroke; }
   .hourglass .frame { fill: var(--panel-line); }
@@ -61,7 +61,7 @@
   .dot-icon .on { fill: var(--ink); }
 
   /* run: the fox comes out of the hourglass and runs across */
-  .run { min-height: 160vh; display: grid; align-content: start; padding-top: 16vh; } /* room for the merge into the wordmark */
+  .run { min-height: 160vh; display: grid; align-content: start; padding-top: 34vh; } /* the fox runs in above the copy; room for the merge */
   .run h2 { font-size: clamp(30px, 3.6vw, 56px); line-height: .95; max-width: 14ch; }
   .run p { margin-top: 14px; color: var(--muted); max-width: 36ch; }
 
@@ -76,11 +76,13 @@
 
   @media (max-width: 767px) {
     .hero { align-content: start; padding-top: 14vh; }
-    .leap { justify-items: start; align-content: end; padding: 0 0 6vh; } /* caption arrives after the landing */
-    .leap .caption { text-align: left; }
+    /* copy keeps to the left half; the fox leaps up the right and crosses only once it has passed */
+    .leap { justify-items: start; align-content: start; padding: 10vh 0 0; }
+    .leap .caption { text-align: left; max-width: 50%; }
+    .run h2, .run p { max-width: 50%; }
     .hg-section { grid-template-columns: 1fr; }
-    .hg-panel { height: 56vh; z-index: 1; }
-    .hourglass { width: min(52%, 30vh); }
+    .hg-panel { height: 62vh; z-index: 1; }
+    .hourglass { width: min(46%, 26vh); }
     .hg-copy { padding: 0 24px; }
     .box { min-height: 70vh; padding: 8vh 0; align-content: start; }
     .box p { font-size: 17px; }
@@ -89,7 +91,7 @@
 <script type="importmap">
 {
   "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js",
     "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
   }
 }
@@ -1253,16 +1255,23 @@ const { createDotStory } = (() => {
  *   at        progress 0..1 of the whole page, or a selector (that element's top at the viewport top);
  *             `after` adds screens, e.g. { at: '#story', after: 0.5 }
  *   x, y      character centre in viewport units (-1 left/bottom, 1 right/top), or `anchor: selector`
- *             (followed as the page scrolls; x and y then offset it). With an anchor, `align: 'bottom'`
- *             stands the character on it and `align: 'top'` hangs it underneath
+ *             (x and y then offset it). Between two keyframes on the same element the character rides
+ *             along with it; heading for one from elsewhere, it aims where the element will be.
+ *             `align: 'bottom'` stands it on the anchor, 'top' hangs it underneath, and 'pour' or
+ *             'emerge' send it through the anchor head first, `pour` / `emerge` lengths past it
  *   size      character length as a fraction of the viewport's shorter side
  *   pitch     nose up (+) / down (-) in degrees, whichever way it faces
  *   clip, clipTime   scrub an animation clip with the scroll between two keyframes (in cycles)
  *   form      'character' | 'logo': between two keyframes with different forms the dots move
  *             across one by one
- *   pour      0..1, how much of the character has gone into the hourglass (lowest part first)
+ *   pour      how far the character has gone into the hourglass, in its own lengths along the dive:
+ *             below 0 it is still above the inlet, 1 is all the way in; dots crumble into sand as
+ *             they pass the inlet and land while it travels `hourglass.crumble` further
  *   drain     0..1, how much of the sand has run through the neck
- *   emerge    0..1, how much of the character has come back out of the bottom
+ *   emerge    how far the character has come back out of the bottom, in lengths (dots set off from
+ *             the sand a little before their place reaches the opening)
+ *   ease      'linear', 'easeIn', 'easeOut', 'easeInOut' (default) or 'spline': a smooth curve that
+ *             carries its speed through the keyframes instead of stopping at each one
  */
 
 const DEG = Math.PI / 180;
@@ -1345,7 +1354,7 @@ function createDotStory(userOptions = {}) {
     const list = opts.keyframes || [];
     frames = list
       .map((kf, index) => {
-        const f = { index, at: resolveAt(kf, index, list.length), ease: EASE[kf.ease] || (typeof kf.ease === 'function' ? kf.ease : EASE.easeInOut), v: {} };
+        const f = { index, at: resolveAt(kf, index, list.length), ease: EASE[kf.ease] || (typeof kf.ease === 'function' ? kf.ease : EASE.easeInOut), spline: kf.ease === 'spline', v: {} };
         for (const k of NUM_KEYS) if (typeof kf[k] === 'number') f.v[k] = kf[k];
         if (kf.anchor) {
           f.anchor = document.querySelector(kf.anchor);
@@ -1359,7 +1368,21 @@ function createDotStory(userOptions = {}) {
         if (kf.form) f.form = kf.form;
         return f;
       })
+      .filter((f) => !f.anchor || f.anchor.isConnected)
       .sort((a, b) => a.at - b.at || a.index - b.index);
+    // Where each anchor will be when the page reaches its keyframe. Heading for an element from
+    // somewhere else aims there, rather than chasing the element while it's still scrolling.
+    const anchored = frames.filter((f) => f.anchor);
+    if (anchored.length) {
+      const y0 = window.scrollY;
+      for (const f of anchored) {
+        window.scrollTo({ top: f.at * range, behavior: 'instant' });
+        const r = f.anchor.getBoundingClientRect();
+        f.fx = r.left + r.width / 2;
+        f.fy = r.top + r.height / 2;
+      }
+      window.scrollTo({ top: y0, behavior: 'instant' });
+    }
     tracks = {};
     for (const k of NUM_KEYS) {
       tracks[k] = frames.filter((f) => f.v[k] !== undefined || (f.anchor && (k === 'x' || k === 'y')));
@@ -1368,32 +1391,76 @@ function createDotStory(userOptions = {}) {
     tracks.form = frames.filter((f) => f.form);
   }
 
-  function valueOf(f, k) {
-    if (f.anchor && (k === 'x' || k === 'y')) {
+  // A keyframe's value. An anchored one uses the element live, or where it will be at that keyframe;
+  // `p` is the progress its pour or emerge is read at.
+  function valueOf(f, k, live, p) {
+    if (!(f.anchor && (k === 'x' || k === 'y'))) return f.v[k];
+    let ax = f.fx;
+    let ay = f.fy;
+    if (live || ax === undefined) {
       const r = f.anchor.getBoundingClientRect();
-      // aligned: the character's outline (the part that is the character right now) meets the anchor
-      const b = f.align ? character.box : null;
-      if (k === 'x') return ((r.left + r.width / 2 - (b ? b.cx : 0)) / vw) * 2 - 1 + f.ox;
-      const edge = !b ? 0 : f.align === 'bottom' ? b.maxY : f.align === 'top' ? b.minY : (b.minY + b.maxY) / 2;
-      return 1 - ((r.top + r.height / 2 - edge) / vh) * 2 + f.oy;
+      ax = r.left + r.width / 2;
+      ay = r.top + r.height / 2;
     }
-    return f.v[k];
+    const c = character;
+    const through = f.align === 'pour' || f.align === 'emerge';
+    if (k === 'x') {
+      const off = through ? (c.fit ? c.fit.mx : 0) : f.align && c.box ? c.box.cx : 0;
+      return ((ax - off) / vw) * 2 - 1 + f.ox;
+    }
+    let edge = 0;
+    if (through && c.fit) {
+      // passing through head first: its leading point is pour (or emerge) lengths past the anchor
+      edge = c.fit.lead - sample(f.align, p) * c.fit.extent;
+    } else if (f.align && c.box) {
+      edge = f.align === 'bottom' ? c.box.maxY : f.align === 'top' ? c.box.minY : (c.box.minY + c.box.maxY) / 2;
+    }
+    return 1 - ((ay - edge) / vh) * 2 + f.oy;
   }
 
   function sample(k, p) {
     const list = tracks[k];
     if (!list || !list.length) return NUM_DEFAULTS[k];
-    if (p <= list[0].at) return valueOf(list[0], k);
-    for (let i = 1; i < list.length; i++) {
-      const b = list[i];
-      if (p <= b.at) {
-        const a = list[i - 1];
-        const t = b.at - a.at > 1e-6 ? (p - a.at) / (b.at - a.at) : 1;
-        const va = valueOf(a, k);
-        return va + (valueOf(b, k) - va) * b.ease(t);
-      }
+    if (p <= list[0].at) return valueOf(list[0], k, true, p);
+    for (let i = 1; i < list.length; i++) if (p <= list[i].at) return segment(list, i, k, p);
+    return valueOf(list[list.length - 1], k, true, p);
+  }
+
+  // the value between keyframes i-1 and i
+  function segment(list, i, k, p) {
+    const a = list[i - 1];
+    const b = list[i];
+    const t = b.at - a.at > 1e-6 ? (p - a.at) / (b.at - a.at) : 1;
+    // both on the same element: ride along with it
+    const same = !!a.anchor && a.anchor === b.anchor;
+    const va = valueOf(a, k, same, same ? p : a.at);
+    const vb = valueOf(b, k, same, same ? p : b.at);
+    if (!b.spline) return va + (vb - va) * b.ease(t);
+    // a cubic through the keyframes that keeps its speed across them (no stop at each one)
+    const h = b.at - a.at;
+    const ma = slope(list, i - 1, k) * h;
+    const mb = slope(list, i, k) * h;
+    const t2 = t * t;
+    const t3 = t2 * t;
+    return (2 * t3 - 3 * t2 + 1) * va + (t3 - 2 * t2 + t) * ma + (3 * t2 - 2 * t3) * vb + (t3 - t2) * mb;
+  }
+
+  // Speed at keyframe j, for spline segments: Catmull-Rom between two splines; next to any other kind
+  // of segment, that segment's own speed at the joint, so the motion carries straight on into it (an
+  // eased segment starts and ends at rest); zero at the ends.
+  function slope(list, j, k) {
+    const f = list[j];
+    const prev = list[j - 1];
+    const next = list[j + 1];
+    const inSpline = !!prev && f.spline;
+    const outSpline = !!next && next.spline;
+    if (inSpline && outSpline) {
+      return (valueOf(next, k, false, next.at) - valueOf(prev, k, false, prev.at)) / Math.max(1e-6, next.at - prev.at);
     }
-    return valueOf(list[list.length - 1], k);
+    const eps = 1e-4;
+    if (inSpline && next) return (segment(list, j + 1, k, f.at + eps) - segment(list, j + 1, k, f.at)) / eps;
+    if (outSpline && prev) return (segment(list, j, k, f.at) - segment(list, j, k, f.at - eps)) / eps;
+    return 0;
   }
 
   function sampleClip(p) {
@@ -1433,7 +1500,10 @@ function createDotStory(userOptions = {}) {
     yawGroup: null, tiltGroup: null, pitchGroup: null, anim: null, meshes: [],
     // each dot's pin: mesh, triangle corners and barycentric weights
     bound: 0, bm: null, ba: null, bb: null, bc: null, bu: null, bv: null, bw: null,
-    lx: new Float32Array(0), ly: new Float32Array(0), cx: 0, cy: 0, box: null,
+    lx: new Float32Array(0), ly: new Float32Array(0), cx: 0, cy: 0, box: null, fit: null,
+    // each dot's depth along the dive (0 = the leading point, 1 = the trailing one), in pour order,
+    // and the character's depth in lengths
+    depth: new Float32Array(0), depthExtent: 1,
     stamp: 0, posed: false, speed: 0, vx: 0, dir: 0, yaw: 0, snap: true, moved: false,
   };
 
@@ -1668,7 +1738,11 @@ function createDotStory(userOptions = {}) {
     // down). Sand keeps that order all the way through, so each dot comes back out to its own place.
     const a = ((opts.hourglass && opts.hourglass.dive) ?? -70) * DEG * face.start;
     const depth = (i) => pin.x[i] * Math.sin(a) + pin.y[i] * Math.cos(a);
-    setOrder(Array.from({ length: N }, (_, i) => i).sort((i, j) => depth(i) - depth(j)));
+    const order = Array.from({ length: N }, (_, i) => i).sort((i, j) => depth(i) - depth(j));
+    setOrder(order);
+    const d0 = depth(order[0]);
+    c.depthExtent = Math.max(1e-6, depth(order[N - 1]) - d0);
+    c.depth = Float32Array.from(order, (i) => (depth(i) - d0) / c.depthExtent);
     // and the order places on the character leave for the logo: lowest first, so the figure
     // streams down into it from the feet up
     Array.from({ length: N }, (_, i) => i)
@@ -1728,7 +1802,7 @@ function createDotStory(userOptions = {}) {
   }
 
   // Pose the character (gait, scrubbed clips, facing, pitch) and place every pinned dot on screen.
-  function poseCharacter(p, prevP, dt, size, pitch, flow) {
+  function poseCharacter(p, prevP, dt, size, pitch) {
     const c = character;
     const len = Math.max(8, size * Math.min(vw, vh));
     // gait comes from its own motion along the keyframes: riding on a moving anchor doesn't count
@@ -1771,25 +1845,23 @@ function createDotStory(userOptions = {}) {
       c.ly[i] = -(c.bu[i] * x[a * 3 + 1] + c.bv[i] * x[b * 3 + 1] + c.bw[i] * x[d * 3 + 1]) * len;
     }
 
-    // outline of the part that is the character right now (what's left outside the hourglass, or
-    // what has come out of it), for keyframes with `align`
-    let lo = 0;
-    let hi = N;
-    if (flow && flow.out > 0) hi = Math.min(N, Math.ceil(flow.out));
-    else if (flow && flow.inn > 0) lo = Math.min(N, Math.ceil(flow.inn));
-    if (lo >= hi) {
-      lo = 0;
-      hi = N;
-    }
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    for (let q = lo; q < hi; q++) {
-      const i = byPos[q];
-      if (c.lx[i] < minX) minX = c.lx[i];
-      if (c.lx[i] > maxX) maxX = c.lx[i];
-      if (c.ly[i] < minY) minY = c.ly[i];
-      if (c.ly[i] > maxY) maxY = c.ly[i];
+    // its outline (for `align: 'bottom' | 'top'`), and where its leading point is when it passes
+    // through an anchor head first (`align: 'pour' | 'emerge'`): fitted over every dot's depth, so a
+    // swinging leg doesn't jog it
+    const ext = c.depthExtent * len;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, sx = 0, sLead = 0;
+    for (let i = 0; i < N; i++) {
+      const x = c.lx[i];
+      const y = c.ly[i];
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+      sx += x;
+      sLead += y + c.depth[pos[i]] * ext;
     }
     c.box = { cx: (minX + maxX) / 2, minY, maxY };
+    c.fit = { mx: sx / N, lead: sLead / N, extent: ext };
     c.cx = ((sample('x', p) + 1) / 2) * vw;
     c.cy = ((1 - sample('y', p)) / 2) * vh;
     c.posed = true;
@@ -1875,23 +1947,40 @@ function createDotStory(userOptions = {}) {
     hourglass.bottomN = bottom.length;
   }
 
-  // How far the flow has got, as counts: `inn` dots have gone in, in pour order (the last `crumble`
-  // of them still falling), `drained` have left the top bulb (the last `stream` still on their way
-  // down), and `out` have left the bottom bulb (the last `exit` still on their way back into the
-  // character). Sand only moves on once it has landed; it comes out once all of it is at the bottom.
+  // how many dots (in pour order) lie less than v of the way along the dive
+  function countBelow(v) {
+    const d = character.depth;
+    let lo = 0;
+    let hi = N;
+    while (lo < hi) {
+      const m = (lo + hi) >> 1;
+      if (d[m] < v) lo = m + 1;
+      else hi = m;
+    }
+    return lo;
+  }
+
+  // How far the flow has got. `pour` is how far the character has passed the inlet, in lengths, so
+  // `inn` dots are past it, and `landed` of those have fallen all the way onto the sand (a dot falls
+  // while the character goes `crumble` further). `drained` dots have left the top bulb (the last
+  // `stream` still on their way down). Once all the sand is at the bottom, `emerge` brings the
+  // character out the same way: `leaving` dots have set off from the mound and `out` are back in it.
   function computeFlow(pose) {
     if (!hourglass.el || !N) return null;
-    const c01 = (v) => Math.min(1, Math.max(0, v));
-    const crumble = Math.max(1, Math.round(N * ((opts.hourglass && opts.hourglass.crumble) ?? 0.16)));
+    const crumble = (opts.hourglass && opts.hourglass.crumble) ?? 0.3;
+    const exit = 0.35;
     const stream = Math.max(12, Math.round(N * 0.04));
-    const exit = Math.max(1, Math.round(N * 0.12));
-    const inn = c01(pose.pour) * (N + crumble);
-    const landed = Math.max(0, inn - crumble);
-    let drained = c01(pose.drain) * (N + stream);
+    const pour = pose.pour;
+    const emerge = pose.emerge;
+    const inn = countBelow(pour);
+    const landed = countBelow(pour - crumble);
+    let drained = Math.min(1, Math.max(0, pose.drain)) * (N + stream);
     if (landed < N) drained = Math.min(drained, landed);
     const low = Math.max(0, drained - stream);
-    const out = low >= N ? c01(pose.emerge) * (N + exit) : 0;
-    return { inn, landed, drained, low, out, crumble, stream, exit };
+    const all = low >= N;
+    const leaving = all ? countBelow(emerge + exit) : 0;
+    const out = all ? countBelow(emerge) : 0;
+    return { pour, emerge, inn, landed, drained, low, leaving, out, crumble, exit, stream };
   }
 
   // The sand's route, worked out once per layout by running the pour and drain forward. The top bulb
@@ -1937,8 +2026,8 @@ function createDotStory(userOptions = {}) {
     if (m >= fl.drained) return TOP;
     if (m >= fl.low) return NECK;
     const e = N - 1 - m;
-    if (e >= fl.out) return BOTTOM;
-    if (e >= fl.out - fl.exit) return EXIT;
+    if (e >= fl.leaving) return BOTTOM;
+    if (e >= fl.out) return EXIT;
     return BODY; // back in the character
   }
 
@@ -2036,6 +2125,8 @@ function createDotStory(userOptions = {}) {
       wordOrder[i] = i;
     }
     setOrder(Array.from({ length: n }, (_, i) => i));
+    character.depth = Float32Array.from({ length: n }, (_, k) => k / n); // until the character is pinned
+    character.depthExtent = 1;
     character.bound = 0;
   }
 
@@ -2088,7 +2179,7 @@ function createDotStory(userOptions = {}) {
       // clings to the body a moment (each dot for its own time, so the edge crumbles raggedly),
       // then drops straight down and only spreads out as it lands on the sand
       const d = jit[i] * 0.45;
-      const f = Math.min(1, Math.max(0, ((fl.inn - k) / fl.crumble - d) / (1 - d)));
+      const f = Math.min(1, Math.max(0, ((fl.pour - character.depth[k]) / fl.crumble - d) / (1 - d)));
       cell(hourglass.top, hourglass.topN, sand.cellTop[k], g);
       const sx = c.cx + c.lx[i];
       const sy = c.cy + c.ly[i];
@@ -2116,19 +2207,20 @@ function createDotStory(userOptions = {}) {
     } else if (st === BOTTOM) {
       cell(hourglass.bottom, hourglass.bottomN, sand.popIndex[k], g);
     } else if (st === EXIT) {
-      // down through the mound to the opening in the base, then out to its place on the character
+      // down through the mound to the opening in the base, then to its place on the character, which
+      // reaches the opening just as the dot does
       const m = sand.popIndex[k];
       const e = N - 1 - m;
-      const f = (fl.out - e) / fl.exit;
+      const f = Math.min(1, Math.max(0, (fl.emerge + fl.exit - character.depth[e]) / fl.exit));
       const sx = g.left + hourglass.w / 2;
       const sy = g.top + HG.v1 * hourglass.h;
-      if (f < 0.4) {
+      if (f < 0.55) {
         cell(hourglass.bottom, hourglass.bottomN, m, g);
-        const q = (f / 0.4) ** 2;
+        const q = (f / 0.55) ** 2;
         out.x += (sx - out.x) * q;
         out.y += (sy - out.y) * q;
       } else {
-        const t = smoothstep((f - 0.4) / 0.6);
+        const t = smoothstep((f - 0.55) / 0.45);
         const j = byPos[e];
         out.x = sx + (c.cx + c.lx[j] - sx) * t;
         out.y = sy + (c.cy + c.ly[j] - sy) * t;
@@ -2158,9 +2250,9 @@ function createDotStory(userOptions = {}) {
 
     // the character is needed while any dot is (or is turning into, or out of) part of it
     const allLogo = form.a === 'logo' && (form.blend === 0 || form.b === 'logo');
-    const allSand = fl && fl.inn >= N + fl.crumble && fl.out <= 0;
+    const allSand = fl && fl.landed >= N && fl.leaving <= 0;
     const charOn = character.bound === N && !allLogo && !allSand;
-    if (charOn) poseCharacter(p, prevP, dt, pose.size, pose.pitch, fl);
+    if (charOn) poseCharacter(p, prevP, dt, pose.size, pose.pitch);
     else character.posed = false;
 
     let g = null;
@@ -2256,11 +2348,11 @@ function createDotStory(userOptions = {}) {
     const settled = !moving && !active && smooth === target && !animating;
     canvas.dataset.settled = String(settled);
     if (debugEl) {
-      const flowText = fl ? `pour ${pose.pour.toFixed(2)} drain ${pose.drain.toFixed(2)} emerge ${pose.emerge.toFixed(2)}  in ${fl.inn | 0} drained ${fl.drained | 0} out ${fl.out | 0}` : '';
+      const flowText = fl ? `pour ${pose.pour.toFixed(2)} drain ${pose.drain.toFixed(2)} emerge ${pose.emerge.toFixed(2)}  in ${fl.inn} landed ${fl.landed} drained ${fl.drained | 0} out ${fl.out}` : '';
       debugEl.textContent =
         `dot-story  progress ${p.toFixed(3)}  form ${form.a}${form.blend > 0 ? ` → ${form.b} ${(form.blend * 100) | 0}%` : ''}\n` +
         `size ${pose.size.toFixed(2)} pitch ${pose.pitch.toFixed(0)}  ${flowText}\n` +
-        `dots ${N}  pinned ${character.bound}  ${character.anim ? character.anim.state : ''}`;
+        `dots ${N}  pinned ${character.bound}  ${character.anim ? character.anim.state : ''}  centre ${character.cx.toFixed(1)},${character.cy.toFixed(1)}`;
     }
     if (!settled) schedule();
     else lastTime = 0;
@@ -2429,32 +2521,34 @@ return { createDotStory };
   // The fox GLB is embedded so the page needs no downloads. Credit: see the footer.
   const FOX = Uint8Array.from(atob(document.getElementById('fox-glb').textContent.trim()), (c) => c.charCodeAt(0)).buffer;
 
-  // One story, tuned per screen size: where it stands, the top of its leap, its size, where it runs to.
-  const story = ({ stand, apex, size: s, runTo, out }) => [
+  // One story, tuned per screen size: where it stands, the top of its pounce, its size in the open and
+  // in the glass, where it runs to, and when it comes out (in screens after the hourglass section).
+  const story = ({ stand, apex, apexAt = -0.85, size: s, inside, end = s, runTo, via, out }) => [
     { at: 0, form: 'character', x: stand[0], y: stand[1], size: s, pitch: 0 },
-    // a scroll-scrubbed leap, down and to the left...
+    // stands until the scroll gets going, then one long scroll-scrubbed pounce: up over the page and
+    // head first into the hourglass, without stopping ('spline' carries the speed through keyframes)
     { at: '#leap', after: -0.7, x: stand[0], y: stand[1], pitch: 0 },
     { at: '#leap', after: -0.7, clip: 'Run', clipTime: 0 },
-    { at: '#leap', after: -0.52, pitch: 16 },                                     // take-off, nose up
-    { at: '#leap', after: -0.42, x: apex[0], y: apex[1], size: s * 1.12, ease: 'easeOut' },
-    { at: '#leap', after: -0.2, pitch: -22 },                                     // coming down
-    // ...that lands on top of the hourglass as it scrolls into view. From here on it is anchored to
-    // the glass, so it moves exactly with the page.
-    { at: '#hourglass-section', after: -0.55, anchor: '#hg-top', align: 'bottom', size: s * 0.72, pitch: 0, ease: 'easeIn' },
-    { at: '#hourglass-section', after: -0.55, clip: 'Run', clipTime: 1, ease: 'linear' },
-    // it tips over the rim and dives in head first; whatever is inside the glass crumbles into sand
-    { at: '#hourglass-section', after: -0.3, anchor: '#hg-top', align: 'bottom', pitch: 0 },
-    { at: '#hourglass-section', after: -0.12, pitch: -70, pour: 0 },
-    { at: '#hourglass-section', after: 0.55, anchor: '#hg-top', align: 'bottom', pour: 1, ease: 'linear' },
+    { at: '#leap', after: -0.5, pitch: 16, ease: 'spline' },
+    { at: '#hourglass-section', after: apexAt, x: apex[0], y: apex[1], size: s * 0.85, ease: 'spline' },
+    { at: '#hourglass-section', after: -0.4, pitch: -25, ease: 'spline' },
+    // nose down over the opening just as the glass settles, already on its way in
+    { at: '#hourglass-section', after: 0, anchor: '#hg-top', align: 'pour', pour: -0.2, size: inside, pitch: -70, ease: 'spline' },
+    { at: '#hourglass-section', after: 0, clip: 'Run', clipTime: 1.5, ease: 'linear' },
+    // in at an even pace, crumbling into sand as it passes the rim
+    { at: '#hourglass-section', after: 0.75, anchor: '#hg-top', align: 'pour', pour: 1.35, ease: 'linear' },
     // the sand runs through the neck while the rest is still pouring in, then on past the boxes
-    { at: '#hourglass-section', after: -0.02, drain: 0 },
-    { at: '#hourglass-section', after: 1.7, drain: 1, ease: 'linear' },
-    // and it comes back out of the bottom, nose first, as the panel scrolls away
-    { at: '#hourglass-section', after: out[0], anchor: '#hg-bottom', align: 'top', pitch: -70, emerge: 0 },
-    { at: '#hourglass-section', after: out[1], anchor: '#hg-bottom', align: 'top', emerge: 1, ease: 'linear' },
-    // levels out and runs across, then streams into the wordmark as the footer arrives
-    { at: '#run', after: 0, x: runTo[0], y: runTo[1], size: s, pitch: 0 },
+    { at: '#hourglass-section', after: 0.2, drain: 0 },
+    { at: '#hourglass-section', after: out[0] - 0.05, drain: 1, ease: 'linear' },
+    // out of the bottom nose first, at the same pace...
+    { at: '#hourglass-section', after: out[0], anchor: '#hg-bottom', align: 'emerge', emerge: -0.35, size: inside, pitch: -70, clip: 'Run', clipTime: 1.5 },
+    { at: '#hourglass-section', after: out[1], anchor: '#hg-bottom', align: 'emerge', emerge: 1, size: inside, pitch: -70, ease: 'linear' },
+    // ...and straight on into a run across the page, levelling out as it goes
+    ...(via ? [{ at: '#hourglass-section', after: via[2], x: via[0], y: via[1], ease: 'spline' }] : []),
+    { at: '#run', after: 0, x: runTo[0], y: runTo[1], size: end, pitch: 0, ease: 'spline' },
+    { at: '#run', after: 0, clip: 'Run', clipTime: 3.5, ease: 'linear' },
     { at: '#run', after: 0.15, x: runTo[0], y: runTo[1] },
+    // and finally streams down into the wordmark as the footer arrives
     { at: '#run', after: 0.15, form: 'character' },
     { at: 1, form: 'logo' },
   ];
@@ -2469,11 +2563,11 @@ return { createDotStory };
     },
     hourglass: { anchor: '#hourglass', panel: '#panel' },
     logo: { anchor: '#logo', text: 'SNOLEP TECHNOLOGIES', dotsPerCap: 10 }, // its dot count is the pool size
-    keyframes: story({ stand: [0.5, 0.25], apex: [0.2, 0.35], size: 0.36, runTo: [0.45, -0.5], out: [1.85, 2.35] }),
+    keyframes: story({ stand: [0.5, 0.25], apex: [0.0, 0.7], size: 0.36, inside: 0.22, runTo: [0.45, -0.5], out: [1.5, 2.0] }),
     responsive: {
       '(max-width: 767px)': {
         gap: 3,
-        keyframes: story({ stand: [0.35, -0.5], apex: [0.1, 0.12], size: 0.42, runTo: [0.4, -0.7], out: [1.8, 2.25] }),
+        keyframes: story({ stand: [0.48, -0.35], apex: [0.48, 0.55], apexAt: -0.5, size: 0.36, inside: 0.21, end: 0.34, runTo: [0.5, -0.7], via: [0.5, -0.2, 2.3], out: [1.55, 2.05] }),
       },
     },
   });

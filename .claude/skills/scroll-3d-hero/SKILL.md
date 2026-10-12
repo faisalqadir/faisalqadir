@@ -233,10 +233,10 @@ whole page:
 
 1. A lit render of the rigged model is Atkinson-dithered once and every dot is pinned to the surface
    under it, so the animal looks 3D and holds together however fast it leaps, runs or turns.
-2. It lands on top of an hourglass as the glass scrolls into view (anchored, so it moves exactly with
-   the page), dives in head first and crumbles into sand. The sand runs through the neck while more is
-   still pouring in, as text boxes scroll past a sticky dark panel.
-3. The animal comes back out of the bottom, nose first.
+2. In one fluid pounce it dives head first into an hourglass as the glass settles in a sticky dark
+   panel, and crumbles into sand that runs through the neck while more is still pouring in, as text
+   boxes scroll past. Splines carry its speed through keyframes, so it never stops on the way.
+3. The animal comes back out of the bottom, nose first, and runs straight on.
 4. The dots stream down into the brand wordmark at the footer.
 
 The cursor scatters them in every form, and nothing moves while the page is still.
@@ -247,7 +247,7 @@ createDotStory({
   character: { url: 'fox.glb', animation: { idle: 'Survey', walk: 'Walk', run: 'Run', still: 'pose' } },
   hourglass: { anchor: '#hourglass', panel: '#panel' },
   logo: { anchor: '#logo', text: 'SNOLEP TECHNOLOGIES' },
-  keyframes: [ /* x, y | anchor + align, size, pitch, clip/clipTime, pour, drain, emerge, form: 'character'|'logo' */ ],
+  keyframes: [ /* x, y | anchor + align, size, pitch, clip/clipTime, pour, drain, emerge, form, ease: 'spline' */ ],
 });
 ```
 

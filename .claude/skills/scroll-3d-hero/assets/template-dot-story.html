@@ -11,7 +11,7 @@
 <script type="importmap">
 {
   "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js",
     "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
   }
 }
@@ -56,7 +56,7 @@
   /* hourglass: sticky dark panel on the left, text boxes scrolling on the right */
   .hg-section { display: grid; grid-template-columns: minmax(0, 46%) minmax(0, 1fr); }
   .hg-panel { position: sticky; top: 0; height: 100vh; background: var(--panel); display: grid; place-items: center; overflow: hidden; }
-  .hourglass { position: relative; width: min(64%, 46vh); aspect-ratio: 2 / 3; }
+  .hourglass { position: relative; width: min(56%, 29vh); aspect-ratio: 2 / 3; }   /* room above and below for the fox */
   .hourglass svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
   .hourglass .glass { fill: none; stroke: var(--panel-line); stroke-width: .8; vector-effect: non-scaling-stroke; }
   .hourglass .frame { fill: var(--panel-line); }
@@ -73,7 +73,7 @@
   .dot-icon .on { fill: var(--ink); }
 
   /* run: the fox comes out of the hourglass and runs across */
-  .run { min-height: 160vh; display: grid; align-content: start; padding-top: 16vh; } /* room for the merge into the wordmark */
+  .run { min-height: 160vh; display: grid; align-content: start; padding-top: 34vh; } /* the fox runs in above the copy; room for the merge */
   .run h2 { font-size: clamp(30px, 3.6vw, 56px); line-height: .95; max-width: 14ch; }
   .run p { margin-top: 14px; color: var(--muted); max-width: 36ch; }
 
@@ -88,11 +88,13 @@
 
   @media (max-width: 767px) {
     .hero { align-content: start; padding-top: 14vh; }
-    .leap { justify-items: start; align-content: end; padding: 0 0 6vh; } /* caption arrives after the landing */
-    .leap .caption { text-align: left; }
+    /* copy keeps to the left half; the fox leaps up the right and crosses only once it has passed */
+    .leap { justify-items: start; align-content: start; padding: 10vh 0 0; }
+    .leap .caption { text-align: left; max-width: 50%; }
+    .run h2, .run p { max-width: 50%; }
     .hg-section { grid-template-columns: 1fr; }
-    .hg-panel { height: 56vh; z-index: 1; }
-    .hourglass { width: min(52%, 30vh); }
+    .hg-panel { height: 62vh; z-index: 1; }
+    .hourglass { width: min(46%, 26vh); }
     .hg-copy { padding: 0 24px; }
     .box { min-height: 70vh; padding: 8vh 0; align-content: start; }
     .box p { font-size: 17px; }
@@ -194,32 +196,34 @@
   // Credit the fox's authors wherever you use it (see the footer). Swap in your own rigged model here.
   const FOX = 'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Assets@edc7c9e67c639d230715049ee31f9a96a6babbbe/Models/Fox/glTF-Binary/Fox.glb';
 
-  // One story, tuned per screen size: where it stands, the top of its leap, its size, where it runs to.
-  const story = ({ stand, apex, size: s, runTo, out }) => [
+  // One story, tuned per screen size: where it stands, the top of its pounce, its size in the open and
+  // in the glass, where it runs to, and when it comes out (in screens after the hourglass section).
+  const story = ({ stand, apex, apexAt = -0.85, size: s, inside, end = s, runTo, via, out }) => [
     { at: 0, form: 'character', x: stand[0], y: stand[1], size: s, pitch: 0 },
-    // a scroll-scrubbed leap, down and to the left...
+    // stands until the scroll gets going, then one long scroll-scrubbed pounce: up over the page and
+    // head first into the hourglass, without stopping ('spline' carries the speed through keyframes)
     { at: '#leap', after: -0.7, x: stand[0], y: stand[1], pitch: 0 },
     { at: '#leap', after: -0.7, clip: 'Run', clipTime: 0 },
-    { at: '#leap', after: -0.52, pitch: 16 },                                     // take-off, nose up
-    { at: '#leap', after: -0.42, x: apex[0], y: apex[1], size: s * 1.12, ease: 'easeOut' },
-    { at: '#leap', after: -0.2, pitch: -22 },                                     // coming down
-    // ...that lands on top of the hourglass as it scrolls into view. From here on it is anchored to
-    // the glass, so it moves exactly with the page.
-    { at: '#hourglass-section', after: -0.55, anchor: '#hg-top', align: 'bottom', size: s * 0.72, pitch: 0, ease: 'easeIn' },
-    { at: '#hourglass-section', after: -0.55, clip: 'Run', clipTime: 1, ease: 'linear' },
-    // it tips over the rim and dives in head first; whatever is inside the glass crumbles into sand
-    { at: '#hourglass-section', after: -0.3, anchor: '#hg-top', align: 'bottom', pitch: 0 },
-    { at: '#hourglass-section', after: -0.12, pitch: -70, pour: 0 },
-    { at: '#hourglass-section', after: 0.55, anchor: '#hg-top', align: 'bottom', pour: 1, ease: 'linear' },
+    { at: '#leap', after: -0.5, pitch: 16, ease: 'spline' },
+    { at: '#hourglass-section', after: apexAt, x: apex[0], y: apex[1], size: s * 0.85, ease: 'spline' },
+    { at: '#hourglass-section', after: -0.4, pitch: -25, ease: 'spline' },
+    // nose down over the opening just as the glass settles, already on its way in
+    { at: '#hourglass-section', after: 0, anchor: '#hg-top', align: 'pour', pour: -0.2, size: inside, pitch: -70, ease: 'spline' },
+    { at: '#hourglass-section', after: 0, clip: 'Run', clipTime: 1.5, ease: 'linear' },
+    // in at an even pace, crumbling into sand as it passes the rim
+    { at: '#hourglass-section', after: 0.75, anchor: '#hg-top', align: 'pour', pour: 1.35, ease: 'linear' },
     // the sand runs through the neck while the rest is still pouring in, then on past the boxes
-    { at: '#hourglass-section', after: -0.02, drain: 0 },
-    { at: '#hourglass-section', after: 1.7, drain: 1, ease: 'linear' },
-    // and it comes back out of the bottom, nose first, as the panel scrolls away
-    { at: '#hourglass-section', after: out[0], anchor: '#hg-bottom', align: 'top', pitch: -70, emerge: 0 },
-    { at: '#hourglass-section', after: out[1], anchor: '#hg-bottom', align: 'top', emerge: 1, ease: 'linear' },
-    // levels out and runs across, then streams into the wordmark as the footer arrives
-    { at: '#run', after: 0, x: runTo[0], y: runTo[1], size: s, pitch: 0 },
+    { at: '#hourglass-section', after: 0.2, drain: 0 },
+    { at: '#hourglass-section', after: out[0] - 0.05, drain: 1, ease: 'linear' },
+    // out of the bottom nose first, at the same pace...
+    { at: '#hourglass-section', after: out[0], anchor: '#hg-bottom', align: 'emerge', emerge: -0.35, size: inside, pitch: -70, clip: 'Run', clipTime: 1.5 },
+    { at: '#hourglass-section', after: out[1], anchor: '#hg-bottom', align: 'emerge', emerge: 1, size: inside, pitch: -70, ease: 'linear' },
+    // ...and straight on into a run across the page, levelling out as it goes
+    ...(via ? [{ at: '#hourglass-section', after: via[2], x: via[0], y: via[1], ease: 'spline' }] : []),
+    { at: '#run', after: 0, x: runTo[0], y: runTo[1], size: end, pitch: 0, ease: 'spline' },
+    { at: '#run', after: 0, clip: 'Run', clipTime: 3.5, ease: 'linear' },
     { at: '#run', after: 0.15, x: runTo[0], y: runTo[1] },
+    // and finally streams down into the wordmark as the footer arrives
     { at: '#run', after: 0.15, form: 'character' },
     { at: 1, form: 'logo' },
   ];
@@ -232,11 +236,11 @@
     },
     hourglass: { anchor: '#hourglass', panel: '#panel' },
     logo: { anchor: '#logo', text: 'SNOLEP TECHNOLOGIES', dotsPerCap: 10 }, // its dot count is the pool size
-    keyframes: story({ stand: [0.5, 0.25], apex: [0.2, 0.35], size: 0.36, runTo: [0.45, -0.5], out: [1.85, 2.35] }),
+    keyframes: story({ stand: [0.5, 0.25], apex: [0.0, 0.7], size: 0.36, inside: 0.22, runTo: [0.45, -0.5], out: [1.5, 2.0] }),
     responsive: {
       '(max-width: 767px)': {
         gap: 3,
-        keyframes: story({ stand: [0.35, -0.5], apex: [0.1, 0.12], size: 0.42, runTo: [0.4, -0.7], out: [1.8, 2.25] }),
+        keyframes: story({ stand: [0.48, -0.35], apex: [0.48, 0.55], apexAt: -0.5, size: 0.36, inside: 0.21, end: 0.34, runTo: [0.5, -0.7], via: [0.5, -0.2, 2.3], out: [1.55, 2.05] }),
       },
     },
   });

@@ -18,16 +18,23 @@
  *   at        progress 0..1 of the whole page, or a selector (that element's top at the viewport top);
  *             `after` adds screens, e.g. { at: '#story', after: 0.5 }
  *   x, y      character centre in viewport units (-1 left/bottom, 1 right/top), or `anchor: selector`
- *             (followed as the page scrolls; x and y then offset it). With an anchor, `align: 'bottom'`
- *             stands the character on it and `align: 'top'` hangs it underneath
+ *             (x and y then offset it). Between two keyframes on the same element the character rides
+ *             along with it; heading for one from elsewhere, it aims where the element will be.
+ *             `align: 'bottom'` stands it on the anchor, 'top' hangs it underneath, and 'pour' or
+ *             'emerge' send it through the anchor head first, `pour` / `emerge` lengths past it
  *   size      character length as a fraction of the viewport's shorter side
  *   pitch     nose up (+) / down (-) in degrees, whichever way it faces
  *   clip, clipTime   scrub an animation clip with the scroll between two keyframes (in cycles)
  *   form      'character' | 'logo': between two keyframes with different forms the dots move
  *             across one by one
- *   pour      0..1, how much of the character has gone into the hourglass (lowest part first)
+ *   pour      how far the character has gone into the hourglass, in its own lengths along the dive:
+ *             below 0 it is still above the inlet, 1 is all the way in; dots crumble into sand as
+ *             they pass the inlet and land while it travels `hourglass.crumble` further
  *   drain     0..1, how much of the sand has run through the neck
- *   emerge    0..1, how much of the character has come back out of the bottom
+ *   emerge    how far the character has come back out of the bottom, in lengths (dots set off from
+ *             the sand a little before their place reaches the opening)
+ *   ease      'linear', 'easeIn', 'easeOut', 'easeInOut' (default) or 'spline': a smooth curve that
+ *             carries its speed through the keyframes instead of stopping at each one
  */
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -113,7 +120,7 @@ export function createDotStory(userOptions = {}) {
     const list = opts.keyframes || [];
     frames = list
       .map((kf, index) => {
-        const f = { index, at: resolveAt(kf, index, list.length), ease: EASE[kf.ease] || (typeof kf.ease === 'function' ? kf.ease : EASE.easeInOut), v: {} };
+        const f = { index, at: resolveAt(kf, index, list.length), ease: EASE[kf.ease] || (typeof kf.ease === 'function' ? kf.ease : EASE.easeInOut), spline: kf.ease === 'spline', v: {} };
         for (const k of NUM_KEYS) if (typeof kf[k] === 'number') f.v[k] = kf[k];
         if (kf.anchor) {
           f.anchor = document.querySelector(kf.anchor);
@@ -127,7 +134,21 @@ export function createDotStory(userOptions = {}) {
         if (kf.form) f.form = kf.form;
         return f;
       })
+      .filter((f) => !f.anchor || f.anchor.isConnected)
       .sort((a, b) => a.at - b.at || a.index - b.index);
+    // Where each anchor will be when the page reaches its keyframe. Heading for an element from
+    // somewhere else aims there, rather than chasing the element while it's still scrolling.
+    const anchored = frames.filter((f) => f.anchor);
+    if (anchored.length) {
+      const y0 = window.scrollY;
+      for (const f of anchored) {
+        window.scrollTo({ top: f.at * range, behavior: 'instant' });
+        const r = f.anchor.getBoundingClientRect();
+        f.fx = r.left + r.width / 2;
+        f.fy = r.top + r.height / 2;
+      }
+      window.scrollTo({ top: y0, behavior: 'instant' });
+    }
     tracks = {};
     for (const k of NUM_KEYS) {
       tracks[k] = frames.filter((f) => f.v[k] !== undefined || (f.anchor && (k === 'x' || k === 'y')));
@@ -136,32 +157,76 @@ export function createDotStory(userOptions = {}) {
     tracks.form = frames.filter((f) => f.form);
   }
 
-  function valueOf(f, k) {
-    if (f.anchor && (k === 'x' || k === 'y')) {
+  // A keyframe's value. An anchored one uses the element live, or where it will be at that keyframe;
+  // `p` is the progress its pour or emerge is read at.
+  function valueOf(f, k, live, p) {
+    if (!(f.anchor && (k === 'x' || k === 'y'))) return f.v[k];
+    let ax = f.fx;
+    let ay = f.fy;
+    if (live || ax === undefined) {
       const r = f.anchor.getBoundingClientRect();
-      // aligned: the character's outline (the part that is the character right now) meets the anchor
-      const b = f.align ? character.box : null;
-      if (k === 'x') return ((r.left + r.width / 2 - (b ? b.cx : 0)) / vw) * 2 - 1 + f.ox;
-      const edge = !b ? 0 : f.align === 'bottom' ? b.maxY : f.align === 'top' ? b.minY : (b.minY + b.maxY) / 2;
-      return 1 - ((r.top + r.height / 2 - edge) / vh) * 2 + f.oy;
+      ax = r.left + r.width / 2;
+      ay = r.top + r.height / 2;
     }
-    return f.v[k];
+    const c = character;
+    const through = f.align === 'pour' || f.align === 'emerge';
+    if (k === 'x') {
+      const off = through ? (c.fit ? c.fit.mx : 0) : f.align && c.box ? c.box.cx : 0;
+      return ((ax - off) / vw) * 2 - 1 + f.ox;
+    }
+    let edge = 0;
+    if (through && c.fit) {
+      // passing through head first: its leading point is pour (or emerge) lengths past the anchor
+      edge = c.fit.lead - sample(f.align, p) * c.fit.extent;
+    } else if (f.align && c.box) {
+      edge = f.align === 'bottom' ? c.box.maxY : f.align === 'top' ? c.box.minY : (c.box.minY + c.box.maxY) / 2;
+    }
+    return 1 - ((ay - edge) / vh) * 2 + f.oy;
   }
 
   function sample(k, p) {
     const list = tracks[k];
     if (!list || !list.length) return NUM_DEFAULTS[k];
-    if (p <= list[0].at) return valueOf(list[0], k);
-    for (let i = 1; i < list.length; i++) {
-      const b = list[i];
-      if (p <= b.at) {
-        const a = list[i - 1];
-        const t = b.at - a.at > 1e-6 ? (p - a.at) / (b.at - a.at) : 1;
-        const va = valueOf(a, k);
-        return va + (valueOf(b, k) - va) * b.ease(t);
-      }
+    if (p <= list[0].at) return valueOf(list[0], k, true, p);
+    for (let i = 1; i < list.length; i++) if (p <= list[i].at) return segment(list, i, k, p);
+    return valueOf(list[list.length - 1], k, true, p);
+  }
+
+  // the value between keyframes i-1 and i
+  function segment(list, i, k, p) {
+    const a = list[i - 1];
+    const b = list[i];
+    const t = b.at - a.at > 1e-6 ? (p - a.at) / (b.at - a.at) : 1;
+    // both on the same element: ride along with it
+    const same = !!a.anchor && a.anchor === b.anchor;
+    const va = valueOf(a, k, same, same ? p : a.at);
+    const vb = valueOf(b, k, same, same ? p : b.at);
+    if (!b.spline) return va + (vb - va) * b.ease(t);
+    // a cubic through the keyframes that keeps its speed across them (no stop at each one)
+    const h = b.at - a.at;
+    const ma = slope(list, i - 1, k) * h;
+    const mb = slope(list, i, k) * h;
+    const t2 = t * t;
+    const t3 = t2 * t;
+    return (2 * t3 - 3 * t2 + 1) * va + (t3 - 2 * t2 + t) * ma + (3 * t2 - 2 * t3) * vb + (t3 - t2) * mb;
+  }
+
+  // Speed at keyframe j, for spline segments: Catmull-Rom between two splines; next to any other kind
+  // of segment, that segment's own speed at the joint, so the motion carries straight on into it (an
+  // eased segment starts and ends at rest); zero at the ends.
+  function slope(list, j, k) {
+    const f = list[j];
+    const prev = list[j - 1];
+    const next = list[j + 1];
+    const inSpline = !!prev && f.spline;
+    const outSpline = !!next && next.spline;
+    if (inSpline && outSpline) {
+      return (valueOf(next, k, false, next.at) - valueOf(prev, k, false, prev.at)) / Math.max(1e-6, next.at - prev.at);
     }
-    return valueOf(list[list.length - 1], k);
+    const eps = 1e-4;
+    if (inSpline && next) return (segment(list, j + 1, k, f.at + eps) - segment(list, j + 1, k, f.at)) / eps;
+    if (outSpline && prev) return (segment(list, j, k, f.at) - segment(list, j, k, f.at - eps)) / eps;
+    return 0;
   }
 
   function sampleClip(p) {
@@ -201,7 +266,10 @@ export function createDotStory(userOptions = {}) {
     yawGroup: null, tiltGroup: null, pitchGroup: null, anim: null, meshes: [],
     // each dot's pin: mesh, triangle corners and barycentric weights
     bound: 0, bm: null, ba: null, bb: null, bc: null, bu: null, bv: null, bw: null,
-    lx: new Float32Array(0), ly: new Float32Array(0), cx: 0, cy: 0, box: null,
+    lx: new Float32Array(0), ly: new Float32Array(0), cx: 0, cy: 0, box: null, fit: null,
+    // each dot's depth along the dive (0 = the leading point, 1 = the trailing one), in pour order,
+    // and the character's depth in lengths
+    depth: new Float32Array(0), depthExtent: 1,
     stamp: 0, posed: false, speed: 0, vx: 0, dir: 0, yaw: 0, snap: true, moved: false,
   };
 
@@ -436,7 +504,11 @@ export function createDotStory(userOptions = {}) {
     // down). Sand keeps that order all the way through, so each dot comes back out to its own place.
     const a = ((opts.hourglass && opts.hourglass.dive) ?? -70) * DEG * face.start;
     const depth = (i) => pin.x[i] * Math.sin(a) + pin.y[i] * Math.cos(a);
-    setOrder(Array.from({ length: N }, (_, i) => i).sort((i, j) => depth(i) - depth(j)));
+    const order = Array.from({ length: N }, (_, i) => i).sort((i, j) => depth(i) - depth(j));
+    setOrder(order);
+    const d0 = depth(order[0]);
+    c.depthExtent = Math.max(1e-6, depth(order[N - 1]) - d0);
+    c.depth = Float32Array.from(order, (i) => (depth(i) - d0) / c.depthExtent);
     // and the order places on the character leave for the logo: lowest first, so the figure
     // streams down into it from the feet up
     Array.from({ length: N }, (_, i) => i)
@@ -496,7 +568,7 @@ export function createDotStory(userOptions = {}) {
   }
 
   // Pose the character (gait, scrubbed clips, facing, pitch) and place every pinned dot on screen.
-  function poseCharacter(p, prevP, dt, size, pitch, flow) {
+  function poseCharacter(p, prevP, dt, size, pitch) {
     const c = character;
     const len = Math.max(8, size * Math.min(vw, vh));
     // gait comes from its own motion along the keyframes: riding on a moving anchor doesn't count
@@ -539,25 +611,23 @@ export function createDotStory(userOptions = {}) {
       c.ly[i] = -(c.bu[i] * x[a * 3 + 1] + c.bv[i] * x[b * 3 + 1] + c.bw[i] * x[d * 3 + 1]) * len;
     }
 
-    // outline of the part that is the character right now (what's left outside the hourglass, or
-    // what has come out of it), for keyframes with `align`
-    let lo = 0;
-    let hi = N;
-    if (flow && flow.out > 0) hi = Math.min(N, Math.ceil(flow.out));
-    else if (flow && flow.inn > 0) lo = Math.min(N, Math.ceil(flow.inn));
-    if (lo >= hi) {
-      lo = 0;
-      hi = N;
-    }
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    for (let q = lo; q < hi; q++) {
-      const i = byPos[q];
-      if (c.lx[i] < minX) minX = c.lx[i];
-      if (c.lx[i] > maxX) maxX = c.lx[i];
-      if (c.ly[i] < minY) minY = c.ly[i];
-      if (c.ly[i] > maxY) maxY = c.ly[i];
+    // its outline (for `align: 'bottom' | 'top'`), and where its leading point is when it passes
+    // through an anchor head first (`align: 'pour' | 'emerge'`): fitted over every dot's depth, so a
+    // swinging leg doesn't jog it
+    const ext = c.depthExtent * len;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, sx = 0, sLead = 0;
+    for (let i = 0; i < N; i++) {
+      const x = c.lx[i];
+      const y = c.ly[i];
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+      sx += x;
+      sLead += y + c.depth[pos[i]] * ext;
     }
     c.box = { cx: (minX + maxX) / 2, minY, maxY };
+    c.fit = { mx: sx / N, lead: sLead / N, extent: ext };
     c.cx = ((sample('x', p) + 1) / 2) * vw;
     c.cy = ((1 - sample('y', p)) / 2) * vh;
     c.posed = true;
@@ -643,23 +713,40 @@ export function createDotStory(userOptions = {}) {
     hourglass.bottomN = bottom.length;
   }
 
-  // How far the flow has got, as counts: `inn` dots have gone in, in pour order (the last `crumble`
-  // of them still falling), `drained` have left the top bulb (the last `stream` still on their way
-  // down), and `out` have left the bottom bulb (the last `exit` still on their way back into the
-  // character). Sand only moves on once it has landed; it comes out once all of it is at the bottom.
+  // how many dots (in pour order) lie less than v of the way along the dive
+  function countBelow(v) {
+    const d = character.depth;
+    let lo = 0;
+    let hi = N;
+    while (lo < hi) {
+      const m = (lo + hi) >> 1;
+      if (d[m] < v) lo = m + 1;
+      else hi = m;
+    }
+    return lo;
+  }
+
+  // How far the flow has got. `pour` is how far the character has passed the inlet, in lengths, so
+  // `inn` dots are past it, and `landed` of those have fallen all the way onto the sand (a dot falls
+  // while the character goes `crumble` further). `drained` dots have left the top bulb (the last
+  // `stream` still on their way down). Once all the sand is at the bottom, `emerge` brings the
+  // character out the same way: `leaving` dots have set off from the mound and `out` are back in it.
   function computeFlow(pose) {
     if (!hourglass.el || !N) return null;
-    const c01 = (v) => Math.min(1, Math.max(0, v));
-    const crumble = Math.max(1, Math.round(N * ((opts.hourglass && opts.hourglass.crumble) ?? 0.16)));
+    const crumble = (opts.hourglass && opts.hourglass.crumble) ?? 0.3;
+    const exit = 0.35;
     const stream = Math.max(12, Math.round(N * 0.04));
-    const exit = Math.max(1, Math.round(N * 0.12));
-    const inn = c01(pose.pour) * (N + crumble);
-    const landed = Math.max(0, inn - crumble);
-    let drained = c01(pose.drain) * (N + stream);
+    const pour = pose.pour;
+    const emerge = pose.emerge;
+    const inn = countBelow(pour);
+    const landed = countBelow(pour - crumble);
+    let drained = Math.min(1, Math.max(0, pose.drain)) * (N + stream);
     if (landed < N) drained = Math.min(drained, landed);
     const low = Math.max(0, drained - stream);
-    const out = low >= N ? c01(pose.emerge) * (N + exit) : 0;
-    return { inn, landed, drained, low, out, crumble, stream, exit };
+    const all = low >= N;
+    const leaving = all ? countBelow(emerge + exit) : 0;
+    const out = all ? countBelow(emerge) : 0;
+    return { pour, emerge, inn, landed, drained, low, leaving, out, crumble, exit, stream };
   }
 
   // The sand's route, worked out once per layout by running the pour and drain forward. The top bulb
@@ -705,8 +792,8 @@ export function createDotStory(userOptions = {}) {
     if (m >= fl.drained) return TOP;
     if (m >= fl.low) return NECK;
     const e = N - 1 - m;
-    if (e >= fl.out) return BOTTOM;
-    if (e >= fl.out - fl.exit) return EXIT;
+    if (e >= fl.leaving) return BOTTOM;
+    if (e >= fl.out) return EXIT;
     return BODY; // back in the character
   }
 
@@ -804,6 +891,8 @@ export function createDotStory(userOptions = {}) {
       wordOrder[i] = i;
     }
     setOrder(Array.from({ length: n }, (_, i) => i));
+    character.depth = Float32Array.from({ length: n }, (_, k) => k / n); // until the character is pinned
+    character.depthExtent = 1;
     character.bound = 0;
   }
 
@@ -856,7 +945,7 @@ export function createDotStory(userOptions = {}) {
       // clings to the body a moment (each dot for its own time, so the edge crumbles raggedly),
       // then drops straight down and only spreads out as it lands on the sand
       const d = jit[i] * 0.45;
-      const f = Math.min(1, Math.max(0, ((fl.inn - k) / fl.crumble - d) / (1 - d)));
+      const f = Math.min(1, Math.max(0, ((fl.pour - character.depth[k]) / fl.crumble - d) / (1 - d)));
       cell(hourglass.top, hourglass.topN, sand.cellTop[k], g);
       const sx = c.cx + c.lx[i];
       const sy = c.cy + c.ly[i];
@@ -884,19 +973,20 @@ export function createDotStory(userOptions = {}) {
     } else if (st === BOTTOM) {
       cell(hourglass.bottom, hourglass.bottomN, sand.popIndex[k], g);
     } else if (st === EXIT) {
-      // down through the mound to the opening in the base, then out to its place on the character
+      // down through the mound to the opening in the base, then to its place on the character, which
+      // reaches the opening just as the dot does
       const m = sand.popIndex[k];
       const e = N - 1 - m;
-      const f = (fl.out - e) / fl.exit;
+      const f = Math.min(1, Math.max(0, (fl.emerge + fl.exit - character.depth[e]) / fl.exit));
       const sx = g.left + hourglass.w / 2;
       const sy = g.top + HG.v1 * hourglass.h;
-      if (f < 0.4) {
+      if (f < 0.55) {
         cell(hourglass.bottom, hourglass.bottomN, m, g);
-        const q = (f / 0.4) ** 2;
+        const q = (f / 0.55) ** 2;
         out.x += (sx - out.x) * q;
         out.y += (sy - out.y) * q;
       } else {
-        const t = smoothstep((f - 0.4) / 0.6);
+        const t = smoothstep((f - 0.55) / 0.45);
         const j = byPos[e];
         out.x = sx + (c.cx + c.lx[j] - sx) * t;
         out.y = sy + (c.cy + c.ly[j] - sy) * t;
@@ -926,9 +1016,9 @@ export function createDotStory(userOptions = {}) {
 
     // the character is needed while any dot is (or is turning into, or out of) part of it
     const allLogo = form.a === 'logo' && (form.blend === 0 || form.b === 'logo');
-    const allSand = fl && fl.inn >= N + fl.crumble && fl.out <= 0;
+    const allSand = fl && fl.landed >= N && fl.leaving <= 0;
     const charOn = character.bound === N && !allLogo && !allSand;
-    if (charOn) poseCharacter(p, prevP, dt, pose.size, pose.pitch, fl);
+    if (charOn) poseCharacter(p, prevP, dt, pose.size, pose.pitch);
     else character.posed = false;
 
     let g = null;
@@ -1024,11 +1114,11 @@ export function createDotStory(userOptions = {}) {
     const settled = !moving && !active && smooth === target && !animating;
     canvas.dataset.settled = String(settled);
     if (debugEl) {
-      const flowText = fl ? `pour ${pose.pour.toFixed(2)} drain ${pose.drain.toFixed(2)} emerge ${pose.emerge.toFixed(2)}  in ${fl.inn | 0} drained ${fl.drained | 0} out ${fl.out | 0}` : '';
+      const flowText = fl ? `pour ${pose.pour.toFixed(2)} drain ${pose.drain.toFixed(2)} emerge ${pose.emerge.toFixed(2)}  in ${fl.inn} landed ${fl.landed} drained ${fl.drained | 0} out ${fl.out}` : '';
       debugEl.textContent =
         `dot-story  progress ${p.toFixed(3)}  form ${form.a}${form.blend > 0 ? ` → ${form.b} ${(form.blend * 100) | 0}%` : ''}\n` +
         `size ${pose.size.toFixed(2)} pitch ${pose.pitch.toFixed(0)}  ${flowText}\n` +
-        `dots ${N}  pinned ${character.bound}  ${character.anim ? character.anim.state : ''}`;
+        `dots ${N}  pinned ${character.bound}  ${character.anim ? character.anim.state : ''}  centre ${character.cx.toFixed(1)},${character.cy.toFixed(1)}`;
     }
     if (!settled) schedule();
     else lastTime = 0;
