@@ -1,6 +1,8 @@
 /*!
  * dot-story.js
  * One field of dots that tells a story as the page scrolls. The same dots become, in turn:
+ *   - optionally a picture first (a logo's mascot, say): the dots dither it in place, so the picture
+ *     can dissolve into them before they leave for the character;
  *   - an animated 3D character: every dot is pinned to a point on a rigged GLB's surface (picked by
  *     Atkinson-dithering a lit render), so the figure holds together as it runs, leaps and turns,
  *     with the same gait, scrubbed clips and stillness as scroll-3d-hero's animated models;
@@ -12,7 +14,7 @@
  * Needs the import map for "three" / "three/addons/" and scroll-3d-hero.js next to this file.
  *
  *   import { createDotStory } from './dot-story.js';
- *   createDotStory({ canvas: '#dots', character: {...}, hourglass: {...}, logo: {...}, keyframes: [...] });
+ *   createDotStory({ canvas: '#dots', image: {...}, character: {...}, hourglass: {...}, logo: {...}, keyframes: [...] });
  *
  * Keyframes interpolate per property between the keyframes that set it:
  *   at        progress 0..1 of the whole page, or a selector (that element's top at the viewport top);
@@ -24,9 +26,14 @@
  *             'emerge' send it through the anchor head first, `pour` / `emerge` lengths past it
  *   size      character length as a fraction of the viewport's shorter side
  *   pitch     nose up (+) / down (-) in degrees, whichever way it faces
+ *   face      1 (right) or -1 (left) holds the way it faces from this keyframe on, 0 hands it back
+ *             to its motion; e.g. to come out of the hourglass already facing where it goes next
  *   clip, clipTime   scrub an animation clip with the scroll between two keyframes (in cycles)
- *   form      'character' | 'logo': between two keyframes with different forms the dots move
- *             across one by one
+ *   form      'image' | 'character' | 'logo': between two keyframes with different forms the dots
+ *             move across one by one
+ *   reveal    0..1, how visible the dots are while they form the image (default 1); the image
+ *             element gets --dots-reveal to fade itself out against, e.g.
+ *             opacity: calc(1 - var(--dots-reveal, 0))
  *   pour      how far the character has gone into the hourglass, in its own lengths along the dive:
  *             below 0 it is still above the inlet, 1 is all the way in; dots crumble into sand as
  *             they pass the inlet and land while it travels `hourglass.crumble` further
@@ -41,14 +48,15 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createAnimator, normalizeObject } from './scroll-3d-hero.js';
 
 const DEG = Math.PI / 180;
-const NUM_KEYS = ['x', 'y', 'size', 'pitch', 'pour', 'drain', 'emerge'];
-const NUM_DEFAULTS = { x: 0, y: 0, size: 0.3, pitch: 0, pour: 0, drain: 0, emerge: 0 };
+const NUM_KEYS = ['x', 'y', 'size', 'pitch', 'pour', 'drain', 'emerge', 'reveal'];
+const NUM_DEFAULTS = { x: 0, y: 0, size: 0.3, pitch: 0, pour: 0, drain: 0, emerge: 0, reveal: 1 };
 
 // what a dot is doing: part of the character, crumbling into the top bulb, sand in the top bulb,
-// falling through the neck, sand in the bottom bulb, coming out of the bottom, part of the logo
-const BODY = 0, FALL = 1, TOP = 2, NECK = 3, BOTTOM = 4, EXIT = 5, LOGO = 6;
+// falling through the neck, sand in the bottom bulb, coming out of the bottom, part of the logo,
+// part of the image, on its way between the image and the character
+const BODY = 0, FALL = 1, TOP = 2, NECK = 3, BOTTOM = 4, EXIT = 5, LOGO = 6, IMAGE = 7, MORPH = 8;
 // changes of state where the dot's target moves on without a jump, so the dot keeps following it
-const SMOOTH = new Set([[BODY, FALL], [FALL, TOP], [TOP, NECK], [NECK, BOTTOM], [BOTTOM, EXIT], [EXIT, BODY]].flatMap(([a, b]) => [a * 8 + b, b * 8 + a]));
+const SMOOTH = new Set([[BODY, FALL], [FALL, TOP], [TOP, NECK], [NECK, BOTTOM], [BOTTOM, EXIT], [EXIT, BODY], [IMAGE, MORPH], [MORPH, BODY]].flatMap(([a, b]) => [a * 16 + b, b * 16 + a]));
 
 const EASE = {
   linear: (t) => t,
@@ -60,8 +68,9 @@ const smoothstep = (t) => t * t * (3 - 2 * t);
 
 const DEFAULTS = {
   canvas: '#dots', // a full-viewport canvas (position: fixed); its CSS `color` is the dot colour
+  image: null, // { anchor: '#mascot' (an <img>), contrast, flip }: the picture the dots start as
   character: null, // { url | buffer, animation: { idle, walk, run, still, face }, rotate, tilt }
-  hourglass: null, // { anchor: '#hourglass', panel: '#panel', dive: -70, crumble: 0.16 }
+  hourglass: null, // { anchor: '#hourglass', panel: '#panel', dive: -70 (match the pitch it pours in at), crumble: 0.3 }
   inverse: null, // selector for dark areas where dots use --panel-dots (the hourglass panel always does)
   logo: null, // { anchor: '#logo', text: 'ACME', fontFamily, fontWeight, fontStretch, ... }
   keyframes: [],
@@ -91,6 +100,8 @@ export function createDotStory(userOptions = {}) {
   let vw = 1, vh = 1, dpr = 1, range = 1;
   let target = 0, smooth = 0, lastP = 0, lastTime = 0, rafId = 0, destroyed = false, ready = false, lastScrollY = -1;
   let N = 0, px, py, vx, vy, ease, fric, spread, jit, pos, byPos, wordOrder, state, ptx, pty;
+  let revealNow = 1;
+  let morphNow = null;
   let dotR = 1.3, spriteR = 0, colors = { ink: '#222', panel: '#eee' };
   let debugEl = null;
   let inverseAreas = [];
@@ -135,6 +146,7 @@ export function createDotStory(userOptions = {}) {
         if (typeof kf.clipTime === 'number') f.clipTime = kf.clipTime;
         if (kf.clip) f.clip = kf.clip;
         if (kf.form) f.form = kf.form;
+        if (kf.face === 1 || kf.face === -1 || kf.face === 0) f.face = kf.face;
         return f;
       })
       .filter((f) => !f.anchor || f.anchor.isConnected)
@@ -158,6 +170,7 @@ export function createDotStory(userOptions = {}) {
     }
     tracks.clip = frames.filter((f) => f.clipTime !== undefined);
     tracks.form = frames.filter((f) => f.form);
+    tracks.face = frames.filter((f) => f.face !== undefined);
   }
 
   // A keyframe's value. An anchored one uses the element live, or where it will be at that keyframe;
@@ -173,18 +186,22 @@ export function createDotStory(userOptions = {}) {
     }
     const c = character;
     const through = f.align === 'pour' || f.align === 'emerge';
+    if (through && c.fit) {
+      // passing through head first, along its own length (so a slanted dive goes in at a slant): its
+      // leading point is pour (or emerge) lengths past the anchor. Once the page has reached this
+      // keyframe its body follows the flow its dots follow (which can lag a fast scroll); heading
+      // towards it, it aims for the keyframe's own value.
+      const amount = flowNow[f.align] !== null && (live || lastP >= f.at) ? flowNow[f.align] : sample(f.align, p);
+      const along = amount * c.fit.extent;
+      if (k === 'x') return ((ax - c.fit.leadX + along * c.fit.ux) / vw) * 2 - 1 + f.ox;
+      return 1 - ((ay - c.fit.lead + along * c.fit.uy) / vh) * 2 + f.oy;
+    }
     if (k === 'x') {
-      const off = through ? (c.fit ? c.fit.mx : 0) : f.align && c.box ? c.box.cx : 0;
+      const off = f.align && c.box ? c.box.cx : 0;
       return ((ax - off) / vw) * 2 - 1 + f.ox;
     }
     let edge = 0;
-    if (through && c.fit) {
-      // passing through head first: its leading point is pour (or emerge) lengths past the anchor
-      // once the page has reached this keyframe, its body follows the flow its dots follow (which can
-      // lag a fast scroll); heading towards it, it aims for the keyframe's own value
-      const amount = flowNow[f.align] !== null && (live || lastP >= f.at) ? flowNow[f.align] : sample(f.align, p);
-      edge = c.fit.lead - amount * c.fit.extent;
-    } else if (f.align && c.box) {
+    if (f.align && c.box) {
       edge = f.align === 'bottom' ? c.box.maxY : f.align === 'top' ? c.box.minY : (c.box.minY + c.box.maxY) / 2;
     }
     return 1 - ((ay - edge) / vh) * 2 + f.oy;
@@ -395,6 +412,28 @@ export function createDotStory(userOptions = {}) {
     return on;
   }
 
+  // Atkinson to exactly n dots: the gain is tuned until it lands close, then the palest extras are
+  // dropped or the darkest unused pixels switched on
+  function ditherExactly(tone, w, h, n) {
+    let gain = 1;
+    let on = [];
+    for (let tries = 0; tries < 12; tries++) {
+      on = atkinson(tone, w, h, gain);
+      if (Math.abs(on.length - n) <= n * 0.03) break;
+      gain = Math.min(4, Math.max(0.2, gain * Math.sqrt(n / Math.max(1, on.length))));
+    }
+    if (on.length > n) return on.slice().sort((a, b) => tone[b] - tone[a]).slice(0, n);
+    if (on.length < n) {
+      const isOn = new Uint8Array(w * h);
+      for (const i of on) isOn[i] = 1;
+      const spare = [];
+      for (let i = 0; i < w * h; i++) if (tone[i] >= 0 && !isOn[i]) spare.push(i);
+      spare.sort((a, b) => tone[b] - tone[a]);
+      return on.concat(spare.slice(0, n - on.length));
+    }
+    return on;
+  }
+
   // Dither the character once, lit, in a level side view, to exactly N dots, then pin each dot to
   // the surface under it. From then on the dots move with the mesh, so the figure holds together.
   function bindCharacter() {
@@ -416,25 +455,7 @@ export function createDotStory(userOptions = {}) {
     const h = Math.max(6, Math.ceil(1.2 / cell));
     renderCharacter(w, h);
     const tone = toneMap(w, h);
-    let gain = 1;
-    let on = [];
-    for (let tries = 0; tries < 12; tries++) {
-      on = atkinson(tone, w, h, gain);
-      if (Math.abs(on.length - N) <= N * 0.03) break;
-      gain = Math.min(4, Math.max(0.2, gain * Math.sqrt(N / Math.max(1, on.length))));
-    }
-    // exactly N: drop the palest extras, or switch on the darkest unused pixels
-    let chosen = on;
-    if (on.length > N) {
-      chosen = on.slice().sort((a, b) => tone[b] - tone[a]).slice(0, N);
-    } else if (on.length < N) {
-      const isOn = new Uint8Array(w * h);
-      for (const i of on) isOn[i] = 1;
-      const spare = [];
-      for (let i = 0; i < w * h; i++) if (tone[i] >= 0 && !isOn[i]) spare.push(i);
-      spare.sort((a, b) => tone[b] - tone[a]);
-      chosen = on.concat(spare.slice(0, N - on.length));
-    }
+    const chosen = ditherExactly(tone, w, h, N);
 
     // pin: a posed, world-space copy of each mesh to cast rays at, straight into the screen
     const _v = new THREE.Vector3();
@@ -502,7 +523,7 @@ export function createDotStory(userOptions = {}) {
       s.geometry.dispose();
       s.material.dispose();
     });
-    Object.assign(c, { bm: pin.m, ba: pin.a, bb: pin.b, bc: pin.c, bu: pin.u, bv: pin.v, bw: pin.w, bound: N });
+    Object.assign(c, { bm: pin.m, ba: pin.a, bb: pin.b, bc: pin.c, bu: pin.u, bv: pin.v, bw: pin.w, px0: pin.x, py0: pin.y, bound: N });
     c.lx = new Float32Array(N);
     c.ly = new Float32Array(N);
 
@@ -594,7 +615,14 @@ export function createDotStory(userOptions = {}) {
     const conf = anim ? anim.conf : { walkAbove: 0.08, still: 'pose' };
     const face = faceConfig();
     if (!c.dir) c.dir = face.start;
-    if (Math.abs(c.vx) > conf.walkAbove * 0.5) c.dir = Math.sign(c.vx);
+    let held = 0;
+    for (const f of tracks.face) {
+      if (f.at > p) break;
+      held = f.face;
+    }
+    if (!c.posed) c.snap = true; // reappearing (out of the sand, say): no turn on the spot
+    if (held) c.dir = held;
+    else if (Math.abs(c.vx) > conf.walkAbove * 0.5) c.dir = Math.sign(c.vx);
     const st = anim ? anim.state : 'idle';
     if (st !== 'idle') c.moved = true;
     const atRest = st === 'idle' && (conf.still === 'idle' || !c.moved);
@@ -618,9 +646,13 @@ export function createDotStory(userOptions = {}) {
     }
 
     // its outline (for `align: 'bottom' | 'top'`), and where its leading point is when it passes
-    // through an anchor head first (`align: 'pour' | 'emerge'`): fitted over every dot's depth, so a
-    // swinging leg doesn't jog it
-    const ext = c.depthExtent * len;
+    // through an anchor head first (`align: 'pour' | 'emerge'`): fitted over every dot's depth along
+    // the way its nose points, so a swinging leg doesn't jog it
+    // (depth is height in the dive pose, so moving `ext` along the nose's line takes it down one
+    // whole depth)
+    const ux = c.dir * Math.cos(pitch * DEG);
+    const uy = -Math.sin(pitch * DEG);
+    const ext = (c.depthExtent * len) / Math.max(0.2, uy);
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, sx = 0, sLead = 0;
     for (let i = 0; i < N; i++) {
       const x = c.lx[i];
@@ -629,11 +661,12 @@ export function createDotStory(userOptions = {}) {
       if (x > maxX) maxX = x;
       if (y < minY) minY = y;
       if (y > maxY) maxY = y;
-      sx += x;
-      sLead += y + c.depth[pos[i]] * ext;
+      const d = c.depth[pos[i]] * ext;
+      sx += x + d * ux;
+      sLead += y + d * uy;
     }
     c.box = { cx: (minX + maxX) / 2, minY, maxY };
-    c.fit = { mx: sx / N, lead: sLead / N, extent: ext };
+    c.fit = { leadX: sx / N, lead: sLead / N, extent: ext, ux, uy };
     c.cx = ((sample('x', p) + 1) / 2) * vw;
     c.cy = ((1 - sample('y', p)) / 2) * vh;
     c.posed = true;
@@ -741,6 +774,7 @@ export function createDotStory(userOptions = {}) {
   // catches up a moment after it stops, instead of skipping dots past their way through the glass;
   // ordinary scrolling stays under these.
   const FLOW_SPEED = { pour: 3, drain: 1.2, emerge: 3 };
+  const MORPH_SPEED = 2.5; // picture to character, per second
   const flowNow = { pour: null, drain: null, emerge: null };
   function limitFlow(pose, dt) {
     const w = flowWindows();
@@ -893,6 +927,105 @@ export function createDotStory(userOptions = {}) {
     logo.count = pts.length / 2;
     logo.gap = gap;
     return true;
+  }
+
+  /* ---------- the image ---------- */
+
+  // Each dot's place on the picture (CSS px from the element's corner), the place on the character
+  // each one goes to, and the order they leave in.
+  const image = { el: null, pts: new Float32Array(0), of: null, rank: null, lastLeft: 0, lastTop: null, reveal: -1 };
+
+  // Dither the picture, as drawn in its element, to exactly N dots: darker means denser, and pale
+  // but solid parts keep a sprinkling so their outline still reads.
+  function layoutImage() {
+    const el = image.el;
+    image.of = null;
+    if (!el || !N || !el.naturalWidth) return false;
+    const W = el.clientWidth;
+    const H = el.clientHeight;
+    if (!W || !H) return false;
+    const o = opts.image || {};
+    const toneAt = (gw, gh) => {
+      const c = document.createElement('canvas');
+      c.width = gw;
+      c.height = gh;
+      const x = c.getContext('2d', { willReadFrequently: true });
+      x.imageSmoothingQuality = 'high';
+      x.drawImage(el, 0, 0, gw, gh);
+      const d = x.getImageData(0, 0, gw, gh).data;
+      const tone = new Float32Array(gw * gh);
+      const k = o.contrast ?? 1;
+      for (let r = 0; r < gh; r++) {
+        for (let q = 0; q < gw; q++) {
+          const i = (r * gw + q) * 4;
+          const j = (gh - 1 - r) * gw + q; // bottom row first, as atkinson() reads it
+          const a = d[i + 3] / 255;
+          if (a < 0.2) {
+            tone[j] = -1;
+            continue;
+          }
+          const lum = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114) / 255;
+          tone[j] = Math.min(1, Math.max(0.05, (1 - lum) * k * a));
+        }
+      }
+      return tone;
+    };
+    // a grid whose cells hold about one dot's worth of darkness each
+    const probeW = 96;
+    const probeH = Math.max(1, Math.round((probeW * H) / W));
+    let sum = 0;
+    for (const t of toneAt(probeW, probeH)) if (t > 0) sum += t;
+    const cell = Math.max(1, Math.sqrt((sum / (probeW * probeH)) * W * H / N));
+    const gw = Math.max(8, Math.round(W / cell));
+    const gh = Math.max(8, Math.round(H / cell));
+    const tone = toneAt(gw, gh);
+    const chosen = ditherExactly(tone, gw, gh, N);
+    const pts = new Float32Array(N * 2);
+    chosen.forEach((idx, n) => {
+      pts[n * 2] = ((idx % gw) + 0.5) * (W / gw);
+      pts[n * 2 + 1] = (gh - 1 - ((idx / gw) | 0) + 0.5) * (H / gh);
+    });
+    // short of pixels (a tiny picture): the rest double up
+    for (let n = chosen.length; n < N; n++) {
+      pts[n * 2] = pts[(n % Math.max(1, chosen.length)) * 2];
+      pts[n * 2 + 1] = pts[(n % Math.max(1, chosen.length)) * 2 + 1];
+    }
+    image.pts = pts;
+    mapImage();
+    return true;
+  }
+
+  // Match picture dots to places on the character, shape to shape: both cut into the same number of
+  // horizontal bands (equal counts, top to bottom) and paired left to right within each, so a head
+  // goes to a head and feet to feet. Dots leave the picture from the top down.
+  function mapImage() {
+    const c = character;
+    if (!image.pts.length || c.bound !== N || !c.px0) return;
+    const flip = (opts.image && opts.image.flip) ? -1 : 1;
+    const ids = () => Array.from({ length: N }, (_, i) => i);
+    const banded = (xs, ys) => {
+      const byY = ids().sort((a, b) => ys(a) - ys(b));
+      const bands = Math.max(1, Math.round(Math.sqrt(N) / 2));
+      const out = [];
+      for (let b = 0; b < bands; b++) {
+        const part = byY.slice(Math.round((b * N) / bands), Math.round(((b + 1) * N) / bands));
+        part.sort((p, q) => xs(p) - xs(q));
+        out.push(...part);
+      }
+      return out;
+    };
+    const pic = banded((i) => image.pts[i * 2], (i) => image.pts[i * 2 + 1]);
+    const slots = banded((j) => c.px0[j] * flip, (j) => -c.py0[j]); // pinned in the pose it starts in
+    image.of = new Int32Array(N);
+    image.rank = new Float32Array(N);
+    const yRank = new Float32Array(N);
+    ids()
+      .sort((a, b) => image.pts[a * 2 + 1] - image.pts[b * 2 + 1])
+      .forEach((m, r) => (yRank[m] = r / N));
+    slots.forEach((j, n) => {
+      image.of[j] = pic[n];
+      image.rank[j] = yRank[pic[n]];
+    });
   }
 
   /* ---------- particles ---------- */
@@ -1052,8 +1185,16 @@ export function createDotStory(userOptions = {}) {
 
     // the character is needed while any dot is (or is turning into, or out of) part of it
     const allLogo = form.a === 'logo' && (form.blend === 0 || form.b === 'logo');
+    // how far the dots have gone from the picture to the character, 0..1: like the sand, it can only
+    // go so fast, so on a flick every dot still takes its whole path instead of skipping it
+    const morphTo = !image.el ? 1 : form.a === 'image' ? (form.b === 'image' ? 0 : form.blend) : form.b === 'image' ? 1 - form.blend : 1;
+    if (morphNow === null || reduce.matches || !ready) morphNow = morphTo;
+    else morphNow += Math.max(-MORPH_SPEED * dt, Math.min(MORPH_SPEED * dt, morphTo - morphNow));
+    if (Math.abs(morphNow - morphTo) < 1e-6) morphNow = morphTo;
+    const morphBehind = morphNow !== morphTo;
+    const allImage = !!image.el && morphNow <= 0;
     const allSand = fl && fl.landed >= N && fl.leaving <= 0;
-    const charOn = character.bound === N && !allLogo && !allSand;
+    const charOn = character.bound === N && !allLogo && !allImage && !allSand;
     if (charOn) poseCharacter(p, prevP, dt, pose.size, pose.pitch);
     else character.posed = false;
 
@@ -1086,6 +1227,27 @@ export function createDotStory(userOptions = {}) {
       logo.lastLeft = r.left;
       logo.lastTop = r.top;
     } else logo.lastTop = null;
+    let imageLeft = 0;
+    let imageTop = 0;
+    let idx = 0;
+    let idy = 0;
+    const withImage = !!image.el && image.pts.length > 0 && morphNow < 1;
+    if (withImage) {
+      const r = image.el.getBoundingClientRect();
+      imageLeft = r.left;
+      imageTop = r.top;
+      if (image.lastTop !== null) {
+        idx = r.left - image.lastLeft;
+        idy = r.top - image.lastTop;
+      }
+      image.lastLeft = r.left;
+      image.lastTop = r.top;
+    } else image.lastTop = null;
+    revealNow = withImage ? Math.min(1, Math.max(0, pose.reveal)) : 1;
+    if (image.el && revealNow !== image.reveal) {
+      image.reveal = revealNow;
+      image.el.style.setProperty('--dots-reveal', revealNow.toFixed(3));
+    }
 
     // physics: follow the target, spring back from the pointer
     const R = opts.pointer.radius;
@@ -1096,11 +1258,36 @@ export function createDotStory(userOptions = {}) {
     for (let i = 0; i < N; i++) {
       const k = pos[i];
       // The place it fills on the character decides when it leaves for the logo (in that order,
-      // with some scatter) and where it lands there (the logo builds up from left to right).
-      const w = form.a === 'logo' || form.b === 'logo' ? wordOrder[slotOf(i, k, fl)] : 0;
-      const f = form.blend > 0 && (w / N) * 0.82 + spread[i] * 0.18 < form.blend ? form.b : form.a;
+      // with some scatter) and where it lands there (the logo builds up from left to right), and
+      // likewise its place on the picture and when it leaves it (from the top down).
+      const j = slotOf(i, k, fl);
+      const w = form.a === 'logo' || form.b === 'logo' ? wordOrder[j] : 0;
+      let f = form.a === 'image' ? 'character' : form.a;
+      let u = 1; // between the picture and the character: how far along its own path, 0..1
+      if (withImage) {
+        // each dot takes a straight, eased path of its own, in turn from the top of the picture down
+        u = image.rank ? Math.min(1, Math.max(0, (morphNow - (image.rank[j] * 0.6 + spread[i] * 0.25)) / 0.15)) : morphNow;
+        f = u >= 1 ? 'character' : u <= 0 ? 'image' : 'morph';
+      } else if (form.blend > 0 && (w / N) * 0.82 + spread[i] * 0.18 < form.blend) f = form.b === 'image' ? 'character' : form.b;
       let st;
-      if (f === 'logo') {
+      if (f === 'morph') {
+        if (!image.pts.length || !charOn) continue;
+        st = MORPH;
+        const m = image.of ? image.of[j] : j;
+        const t = smoothstep(u);
+        const ix = imageLeft + image.pts[m * 2];
+        const iy = imageTop + image.pts[m * 2 + 1];
+        const bx = character.cx + character.lx[j];
+        const by = character.cy + character.ly[j];
+        out.x = ix + (bx - ix) * t;
+        out.y = iy + (by - iy) * t - Math.sin(Math.PI * t) * 18; // a slight hop on the way
+      } else if (f === 'image') {
+        if (!image.pts.length) continue;
+        st = IMAGE;
+        const m = image.of ? image.of[j] : j;
+        out.x = imageLeft + image.pts[m * 2];
+        out.y = imageTop + image.pts[m * 2 + 1];
+      } else if (f === 'logo') {
         if (!logo.count) continue;
         st = LOGO;
         const j = w % logo.count;
@@ -1123,11 +1310,18 @@ export function createDotStory(userOptions = {}) {
       if (was === LOGO && st === LOGO) {
         px[i] += ldx; // a formed logo moves with the page, so it holds together wherever it sits
         py[i] += ldy;
-      } else if (was >= 0 && was !== LOGO && st !== LOGO) {
+      } else if (st === IMAGE && (was === IMAGE || was < 0)) {
+        if (was < 0) {
+          px[i] = out.x; // the picture is there from the start, nothing gathers into it
+          py[i] = out.y;
+        }
+        px[i] += idx; // and it moves with the page too
+        py[i] += idy;
+      } else if (was >= 0 && was !== LOGO && st !== LOGO && (was !== IMAGE || st === MORPH) && (st !== IMAGE || was === MORPH)) {
         if (was === st && (st === TOP || st === BOTTOM)) {
           px[i] += gdx; // sand moves with the glass and settles into its next cell
           py[i] += gdy;
-        } else if (was === st || SMOOTH.has(was * 8 + st)) {
+        } else if (was === st || SMOOTH.has(was * 16 + st)) {
           px[i] += out.x - ptx[i];
           py[i] += out.y - pty[i];
         }
@@ -1164,7 +1358,7 @@ export function createDotStory(userOptions = {}) {
 
     // only clips that play in time keep the loop going; scrubbed and held poses are static
     const st = character.anim && charOn ? character.anim.state : 'idle';
-    const animating = flowBehind || st === 'walk' || st === 'run' || st === 'manual' || (st === 'idle' && character.anim?.conf.still === 'idle');
+    const animating = flowBehind || morphBehind || st === 'walk' || st === 'run' || st === 'manual' || (st === 'idle' && character.anim?.conf.still === 'idle');
     const settled = !moving && !active && smooth === target && !animating;
     canvas.dataset.settled = String(settled);
     if (debugEl) {
@@ -1179,10 +1373,29 @@ export function createDotStory(userOptions = {}) {
     else lastTime = 0;
   }
 
+  // the dots, with the picture's fading in by `reveal`; `inside` limits them to a rect
+  function drawDots(sprite, inside) {
+    const fade = revealNow < 1;
+    for (let pass = 0; pass < (fade ? 2 : 1); pass++) {
+      if (pass === 1) {
+        if (revealNow <= 0) break;
+        ctx.globalAlpha = revealNow;
+      }
+      for (let i = 0; i < N; i++) {
+        if (fade && (state[i] === IMAGE) !== (pass === 1)) continue;
+        const x = px[i];
+        const y = py[i];
+        if (inside && !(x > inside.left - 4 && x < inside.right + 4 && y > inside.top - 4 && y < inside.bottom + 4)) continue;
+        ctx.drawImage(sprite, x * dpr - spriteR, y * dpr - spriteR);
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
   function paint() {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    for (let i = 0; i < N; i++) ctx.drawImage(sprites.ink, px[i] * dpr - spriteR, py[i] * dpr - spriteR);
+    drawDots(sprites.ink, null);
     // inside dark areas (the hourglass panel, and any `inverse` element) the dots use the panel colour
     for (const area of inverseAreas) {
       const r = area.getBoundingClientRect();
@@ -1192,13 +1405,7 @@ export function createDotStory(userOptions = {}) {
       ctx.rect(r.left * dpr, r.top * dpr, r.width * dpr, r.height * dpr);
       ctx.clip();
       ctx.clearRect(r.left * dpr, r.top * dpr, r.width * dpr, r.height * dpr);
-      for (let i = 0; i < N; i++) {
-        const x = px[i];
-        const y = py[i];
-        if (x > r.left - 4 && x < r.right + 4 && y > r.top - 4 && y < r.bottom + 4) {
-          ctx.drawImage(sprites.panel, x * dpr - spriteR, y * dpr - spriteR);
-        }
-      }
+      drawDots(sprites.panel, r);
       ctx.restore();
     }
   }
@@ -1225,6 +1432,7 @@ export function createDotStory(userOptions = {}) {
     const n = logo.count || opts.particles;
     if (n !== N) allocate(n);
     if (character.bound !== N) bindCharacter(); // pin the new pool to the character
+    if (image.el) layoutImage();
     planSand();
     // one dot size everywhere, so it reads as the same dots in every form
     dotR = opts.dotRadius || Math.min(1.6, Math.max(0.9, (logo.count ? logo.gap : opts.gap * 1.4) * 0.24));
@@ -1286,6 +1494,10 @@ export function createDotStory(userOptions = {}) {
     const path = hourglass.el && hourglass.el.querySelector('[data-hourglass-glass]');
     if (path) path.setAttribute('d', hourglassPath());
   }
+  if (base.image) {
+    image.el = document.querySelector(base.image.anchor);
+    if (!image.el) console.warn(`[dot-story] image "${base.image.anchor}" not found`);
+  }
   if (base.logo) {
     logo.el = document.querySelector(base.logo.anchor);
     if (logo.el && !logo.el.getAttribute('aria-label')) logo.el.setAttribute('aria-label', base.logo.text);
@@ -1295,6 +1507,7 @@ export function createDotStory(userOptions = {}) {
   const fontReady = font && document.fonts?.load ? document.fonts.load(font).catch(() => {}) : Promise.resolve();
   const timeout = new Promise((res) => setTimeout(res, 2500));
   const charReady = base.character ? loadCharacter(base.character) : Promise.resolve();
+  const imageReady = image.el && image.el.decode ? image.el.decode().catch(() => {}) : Promise.resolve();
 
   const api = {
     get progress() {
@@ -1320,7 +1533,7 @@ export function createDotStory(userOptions = {}) {
     ready: null,
   };
 
-  api.ready = Promise.all([Promise.race([fontReady, timeout]), charReady]).then(() => {
+  api.ready = Promise.all([Promise.race([fontReady, timeout]), charReady, imageReady]).then(() => {
     layout();
     ready = true;
     canvas.dataset.ready = 'true';

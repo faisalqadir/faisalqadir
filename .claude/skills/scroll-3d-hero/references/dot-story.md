@@ -129,11 +129,13 @@ keyframes: [
 | `align` | With an anchor: `'bottom'` stands the character on it, `'top'` hangs it underneath, `'pour'` and `'emerge'` pass it through head first. |
 | `size` | Character length as a fraction of the viewport's shorter side. |
 | `pitch` | Nose up (+) or down (−) in degrees, whichever way it faces. Match the dive to `hourglass.dive`. |
+| `face` | `1` (right) or `-1` (left) holds the way it faces from this keyframe on; `0` hands it back to its motion. Use it to bring it out of the hourglass already facing where it goes next. |
 | `clip`, `clipTime` | Scrub a clip with the scroll between two keyframes, in cycles. |
 | `pour` | How far the character has gone into the hourglass, in its own lengths along the dive (below 0: still above the rim). |
 | `drain` | 0–1: how much sand has run through the neck. It can overlap `pour`. |
 | `emerge` | How far it has come back out of the bottom, in lengths (after all the sand has landed). |
-| `form` | `'character'` or `'logo'`. Between two forms the dots move across one by one. |
+| `form` | `'image'`, `'character'` or `'logo'`. Between two forms the dots move across one by one. |
+| `reveal` | 0–1: how visible the dots are while they form the image (default 1). The image element gets `--dots-reveal` to fade itself against. |
 | `ease` | Easing for the segment ending at this keyframe: `'linear'`, `'easeIn'`, `'easeOut'`, `'easeInOut'` (default) or `'spline'`. |
 
 ## Options
@@ -141,6 +143,7 @@ keyframes: [
 ```js
 createDotStory({
   canvas: '#dots',
+  image: { anchor: '#mascot', contrast: 1, flip: false }, // optional: a picture the dots start as
   character: { url: 'animal.glb', animation: { idle, walk, run, still: 'pose', face: { idle: 75, start: -1 } }, tilt: 8 },
   hourglass: { anchor: '#hourglass', panel: '#panel', dive: -70, crumble: 0.16 },
   logo: { anchor: '#logo', text: 'BRAND NAME', dotsPerCap: 10 }, // its dot count is the pool size; plus fontFamily, fontWeight, fontStretch…
@@ -157,12 +160,30 @@ createDotStory({
 ```
 
 - `hourglass.dive`: the pitch of the dive; the dots go in lowest-first in that pose. Match it to the
-  `pitch` keyframe of the dive.
+  `pitch` keyframe of the dive. The body slides in and out along its own length, so a dive of about
+  −45 goes in at a slant; −90 drops straight down.
+- `image`: an `<img>` (a logo's mascot, say) the dots dither in place at first. Start with
+  `form: 'image', reveal: 0`, raise `reveal` to 1 while the picture fades with
+  `opacity: calc(1 - var(--dots-reveal, 0))`, then move to `form: 'character'`. Each dot takes its
+  own eased path to its place on the character (head to head, feet to feet; set `flip` if the
+  picture faces the other way), from the top of the picture down. The whole move takes at least
+  0.4 s, so a fast flick still plays it out. Leave a transparent background on the picture: its
+  alpha is the outline.
 - `hourglass.crumble`: how much further (in lengths) the character travels while a dot falls onto the
   sand. Higher shows more of the body crumbling inside the glass.
 
 Add `?dots-debug` to the URL for an overlay with progress, form, pose and flow counts. The canvas gets
 `data-ready` and `data-settled`, for screenshot scripts.
+
+## Starting from a logo
+
+The Snolep site (`site/index.html` in this repo) opens on the logo itself: the leopard layer (cut from
+the wordmark, same frame, transparent) is the `image`, the dots dither it as the page starts to move,
+gather into the animal standing where the leopard sat (an anchor at its feet, `align: 'bottom'`), and
+it bounds off from there. Keep the words it leaps between about 0.6 screens apart and hold one
+gallop phase per leap (`clip: 'Run'`, `clipTime` 0.15 to 0.6) with a `clipTime` keyframe without a
+`clip` at each landing, so it stands still on the word instead of scrubbing the clip backwards. Put
+the landing anchor at the top of the capitals (measure the baseline and the cap height at runtime).
 
 ## Tuning and pitfalls
 

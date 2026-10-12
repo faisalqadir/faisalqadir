@@ -239,6 +239,9 @@ whole page:
 3. The animal comes back out of the bottom, nose first, and runs straight on.
 4. The dots stream down into the brand wordmark at the footer.
 
+Optionally it starts as a picture: give `image: { anchor: '#mascot' }` and the logo's mascot dissolves
+into the dots, which gather into the animal (see "Starting from a logo" in the reference).
+
 The cursor scatters them in every form, and nothing moves while the page is still.
 
 ```js
@@ -247,7 +250,7 @@ createDotStory({
   character: { url: 'fox.glb', animation: { idle: 'Survey', walk: 'Walk', run: 'Run', still: 'pose' } },
   hourglass: { anchor: '#hourglass', panel: '#panel' },
   logo: { anchor: '#logo', text: 'SNOLEP TECHNOLOGIES' },
-  keyframes: [ /* x, y | anchor + align, size, pitch, clip/clipTime, pour, drain, emerge, form, ease: 'spline' */ ],
+  keyframes: [ /* x, y | anchor + align, size, pitch, face, clip/clipTime, pour, drain, emerge, form, reveal, ease: 'spline' */ ],
 });
 ```
 
