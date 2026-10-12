@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Snolep Technologies · dot story</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100,500;100,800;125,800;125,900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+
+<style>
+  :root {
+    --bg: #f4f4f1;
+    --ink: #121212;
+    --muted: #5d5d58;
+    --line: #dcdcd5;
+    --panel: #0e0e0e;
+    --panel-line: #3b3b38;
+    --panel-dots: #ecece6;          /* dots inside the dark panel */
+    --dots: #1b1b1b;                /* dots everywhere else */
+    --display: "Archivo", "Arial Black", Impact, system-ui, sans-serif;
+    --body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { overflow-x: clip; }
+  body { background: var(--bg); color: var(--ink); font: 400 16px/1.55 var(--body); -webkit-font-smoothing: antialiased; }
+  a { color: inherit; }
+
+  /* the one canvas that draws every dot on the page */
+  .dot-story { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 5; pointer-events: none; color: var(--dots); }
+
+  .wrap { width: min(1320px, 100% - 48px); margin-inline: auto; }
+  .eyebrow { display: block; margin-bottom: 18px; font: 500 12px/1.2 ui-monospace, Menlo, Consolas, monospace; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  h1, h2, h3 { font-family: var(--display); font-stretch: 125%; font-weight: 900; text-transform: uppercase; letter-spacing: -.01em; }
+
+  /* hero: copy on the left, the dotted fox stands upper right */
+  .hero { min-height: 100vh; display: grid; align-content: center; }
+  .hero h1 { font-size: clamp(44px, 6.4vw, 108px); line-height: .92; max-width: 9ch; }
+  .hero p { margin-top: 26px; max-width: 36ch; font-size: 18px; color: var(--muted); }
+
+  /* leap: one caption, top right, clear of the diagonal */
+  .leap { min-height: 100vh; display: grid; align-content: start; justify-items: end; padding-top: 14vh; }
+  .leap .caption { max-width: 30ch; text-align: right; }
+  .leap h2 { font-size: clamp(30px, 3.6vw, 56px); line-height: .95; }
+  .leap p { margin-top: 14px; color: var(--muted); }
+
+  /* hourglass: sticky dark panel on the left, text boxes scrolling on the right */
+  .hg-section { display: grid; grid-template-columns: minmax(0, 46%) minmax(0, 1fr); }
+  .hg-panel { position: sticky; top: 0; height: 100vh; background: var(--panel); display: grid; place-items: center; overflow: hidden; }
+  .hourglass { position: relative; width: min(64%, 46vh); aspect-ratio: 2 / 3; }
+  .hourglass svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .hourglass .glass { fill: none; stroke: var(--panel-line); stroke-width: .8; vector-effect: non-scaling-stroke; }
+  .hourglass .frame { fill: var(--panel-line); }
+  .hg-mark { position: absolute; left: 50%; width: 1px; height: 1px; }
+  .hg-mark.top { top: 6%; }
+  .hg-mark.bottom { top: 104%; }
+  .hg-copy { padding: 0 6vw; }
+  .box { min-height: 100vh; display: grid; align-content: center; max-width: 520px; border-bottom: 1px solid var(--line); }
+  .box:last-child { border-bottom: 0; }
+  .box h3 { margin-top: 36px; font-size: clamp(28px, 2.8vw, 44px); line-height: .98; }
+  .box p { margin-top: 22px; font-size: 19px; color: var(--muted); max-width: 34ch; }
+  .dot-icon { width: 104px; height: 104px; display: block; }
+  .dot-icon .bg { fill: var(--line); }
+  .dot-icon .on { fill: var(--ink); }
+
+  /* run: the fox comes out of the hourglass and runs across */
+  .run { min-height: 160vh; display: grid; align-content: start; padding-top: 16vh; } /* room for the merge into the wordmark */
+  .run h2 { font-size: clamp(30px, 3.6vw, 56px); line-height: .95; max-width: 14ch; }
+  .run p { margin-top: 14px; color: var(--muted); max-width: 36ch; }
+
+  /* footer: the dots settle into the wordmark */
+  footer { padding: 34px 0 40px; border-top: 1px solid var(--line); color: var(--muted); }
+  .legal { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px 28px; font: 500 11px/1.4 ui-monospace, Menlo, Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
+  .legal nav { display: flex; flex-wrap: wrap; gap: 8px 22px; }
+  .legal a { text-decoration: none; }
+  .legal a:hover, .legal a:focus-visible { color: var(--ink); }
+  .logo-slot { margin-top: 56px; width: 100%; height: 9vw; }
+  .credit { margin-top: 28px; font-size: 12px; }
+
+  @media (max-width: 767px) {
+    .hero { align-content: start; padding-top: 14vh; }
+    .leap { justify-items: start; }
+    .leap .caption { text-align: left; }
+    .hg-section { grid-template-columns: 1fr; }
+    .hg-panel { height: 56vh; z-index: 1; }
+    .hourglass { width: min(52%, 30vh); }
+    .hg-copy { padding: 0 24px; }
+    .box { min-height: 70vh; padding: 8vh 0; align-content: start; }
+    .box p { font-size: 17px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="dots" class="dot-story" aria-hidden="true"></canvas>
+
+<main>
+  <section class="hero wrap" id="hero">
+    <span class="eyebrow">Snolep Technologies</span>
+    <h1>Quick. Quiet. Precise.</h1>
+    <p>Scroll to follow it through the page. It only moves when you do.</p>
+  </section>
+
+  <section class="leap wrap" id="leap">
+    <div class="caption">
+      <span class="eyebrow">01 · Leap</span>
+      <h2>Every move follows your scroll</h2>
+      <p>Stop halfway through the jump and it waits in mid-air. Move the cursor over it and the dots scatter.</p>
+    </div>
+  </section>
+
+  <section class="hg-section" id="hourglass-section">
+    <div class="hg-panel" id="panel">
+      <div class="hourglass" id="hourglass">
+        <svg viewBox="0 0 100 150" aria-hidden="true">
+          <rect class="frame" x="4" y="0" width="92" height="4"></rect>
+          <rect class="frame" x="4" y="146" width="92" height="4"></rect>
+          <rect class="frame" x="6" y="4" width="1.2" height="142"></rect>
+          <rect class="frame" x="92.8" y="4" width="1.2" height="142"></rect>
+          <path class="glass" data-hourglass-glass d=""></path>
+        </svg>
+        <span class="hg-mark top" id="hg-top"></span>
+        <span class="hg-mark bottom" id="hg-bottom"></span>
+      </div>
+    </div>
+    <div class="hg-copy">
+      <article class="box">
+        <svg class="dot-icon" data-icon="clock" viewBox="0 0 100 100" aria-hidden="true"></svg>
+        <h3>Time, measured</h3>
+        <p>Every system we build starts with the hours it gives back. We map where the time goes before we write a line of code.</p>
+      </article>
+      <article class="box">
+        <svg class="dot-icon" data-icon="flow" viewBox="0 0 100 100" aria-hidden="true"></svg>
+        <h3>Built to flow</h3>
+        <p>Work moves through our software like sand through glass: fewer handoffs, fewer waits, nothing stuck at the neck.</p>
+      </article>
+      <article class="box">
+        <svg class="dot-icon" data-icon="bolt" viewBox="0 0 100 100" aria-hidden="true"></svg>
+        <h3>Out the other side</h3>
+        <p>What goes in comes back out faster and sharper, and keeps running without anyone turning it over.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="run wrap" id="run">
+    <span class="eyebrow">02 · Run</span>
+    <h2>Ready when you are</h2>
+    <p>Keep scrolling and every dot finds its place in the name at the bottom of the page.</p>
+  </section>
+
+  <footer id="footer">
+    <div class="wrap">
+      <div class="legal">
+        <span>© 2026 Snolep Technologies</span>
+        <nav aria-label="Legal"><a href="#">Privacy policy</a><a href="#">Terms</a><a href="#">Cookie settings</a></nav>
+      </div>
+      <div class="logo-slot" id="logo" role="img" aria-label="Snolep Technologies"></div>
+      <p class="credit">Fox model by PixelMannen (CC0); rigging and animation by tomkranis (CC BY 4.0); glTF conversion by @AsoboStudio and @scurest (CC BY 4.0), from the Khronos glTF Sample Assets.</p>
+    </div>
+  </footer>
+</main>
+
+<script>
+  // small dot-matrix icons: '#' is a dot that is on, '.' a faint background dot
+  const ICONS = {
+    clock: ['..#####..', '.#.....#.', '#...#...#', '#...#...#', '#...###.#', '#.......#', '#.......#', '.#.....#.', '..#####..'],
+    flow: ['.........', '......#..', '.......#.', '#########', '.......#.', '......#..', '..#......', '.#.......', '#########'],
+    bolt: ['.....##..', '....##...', '...##....', '..######.', '....##...', '...##....', '..##.....', '.##......', '.........'],
+  };
+  document.querySelectorAll('.dot-icon').forEach((svg) => {
+    const rows = ICONS[svg.dataset.icon] || [];
+    let out = '';
+    for (let y = 0; y < 13; y++) for (let x = 0; x < 13; x++) out += `<circle class="bg" cx="${4 + x * 7.66}" cy="${4 + y * 7.66}" r="1.1"/>`;
+    rows.forEach((row, y) => [...row].forEach((c, x) => {
+      if (c === '#') out += `<circle class="on" cx="${4 + (x + 2) * 7.66}" cy="${4 + (y + 2) * 7.66}" r="3"/>`;
+    }));
+    svg.innerHTML = out;
+  });
+</script>
+
+<script type="module">
+  import { createDotStory } from './dot-story.js';
+
+  // Credit the fox's authors wherever you use it (see the footer). Swap in your own rigged model here.
+  const FOX = 'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Assets@edc7c9e67c639d230715049ee31f9a96a6babbbe/Models/Fox/glTF-Binary/Fox.glb';
+
+  const leap = (x0, y0, apex, land, s) => [
+    // stands upper right, then a scroll-scrubbed diagonal leap down to the lower left
+    { at: '#leap', after: -0.7, x: x0, y: y0, pitch: 0 },
+    { at: '#leap', after: -0.7, clip: 'Run', clipTime: 0 },
+    { at: '#leap', after: -0.52, pitch: 16 },                                  // take-off, nose up
+    { at: '#leap', after: -0.42, x: apex[0], y: apex[1], size: s * 1.12, ease: 'easeOut' },
+    { at: '#leap', after: -0.2, pitch: -22 },                                  // diving, nose down
+    { at: '#leap', after: 0, x: land[0], y: land[1], size: s, pitch: -6, ease: 'easeIn' },
+    { at: '#leap', after: 0, clip: 'Run', clipTime: 1, ease: 'linear' },       // one bound of the run cycle
+    { at: '#leap', after: 0.12, pitch: 0 },
+    { at: '#leap', after: 0.45, x: land[0], y: land[1] },                      // stands still
+  ];
+  const middle = (runTo, s) => [
+    // runs to the top of the hourglass and pours in
+    { at: '#hourglass-section', after: 0, anchor: '#hg-top', size: s * 0.72 },
+    { at: '#hourglass-section', after: 0, form: 'character', sand: 0 },
+    { at: '#hourglass-section', after: 0.35, form: 'hourglass' },
+    // drains as the text boxes go by
+    { at: '#hourglass-section', after: 0.45, sand: 0 },
+    { at: '#hourglass-section', after: 1.55, sand: 1, ease: 'linear' },
+    // re-forms at the base and runs out
+    { at: '#hourglass-section', after: 1.6, form: 'hourglass' },
+    { at: '#hourglass-section', after: 1.6, anchor: '#hg-bottom', size: s * 0.72 },
+    { at: '#hourglass-section', after: 1.95, form: 'character' },
+    { at: '#run', after: 0, x: runTo[0], y: runTo[1], size: s },
+    { at: '#run', after: 0.15, x: runTo[0], y: runTo[1] },
+    // and finally streams down into the wordmark as the footer arrives
+    { at: '#run', after: 0.15, form: 'character' },
+    { at: 1, form: 'logo' },
+  ];
+
+  createDotStory({
+    canvas: '#dots',
+    character: {
+      url: FOX,
+      animation: { idle: 'Survey', walk: 'Walk', run: 'Run', still: 'pose', face: { moving: 90, idle: 75, start: -1 } },
+    },
+    hourglass: { anchor: '#hourglass', panel: '#panel' },
+    logo: { anchor: '#logo', text: 'SNOLEP TECHNOLOGIES' },
+    keyframes: [
+      { at: 0, form: 'character', x: 0.5, y: 0.25, size: 0.3, pitch: 0 },
+      ...leap(0.5, 0.25, [0.2, 0.35], [-0.5, -0.55], 0.3),
+      ...middle([0.45, -0.5], 0.3),
+    ],
+    responsive: {
+      '(max-width: 767px)': {
+        gap: 3,
+        keyframes: [
+          // the leap stays in the lower part of the screen, under the caption
+          { at: 0, form: 'character', x: 0.35, y: -0.5, size: 0.42, pitch: 0 },
+          ...leap(0.35, -0.5, [0.1, -0.42], [-0.45, -0.78], 0.42),
+          ...middle([0.4, -0.7], 0.42),
+        ],
+      },
+    },
+  });
+</script>
+</body>
+</html>

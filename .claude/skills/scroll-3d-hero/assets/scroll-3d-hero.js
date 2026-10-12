@@ -678,7 +678,7 @@ export function createScroll3DHero(userOptions = {}) {
 /* Animation: plays a model's glTF clips and crossfades between idle, walk   */
 /* and run based on how fast the object is travelling.                       */
 
-function createAnimator(root, clips, config) {
+export function createAnimator(root, clips, config) {
   const conf = { ...ANIMATION_DEFAULTS, ...(typeof config === 'string' ? { idle: config } : config) };
   const find = (ref) =>
     ref === null || ref === undefined
@@ -951,7 +951,7 @@ function createShadowMesh() {
 }
 
 // Centre the object and scale it so its largest dimension is 1; keyframe `size` then means the same for any model.
-function normalizeObject(object, rotate) {
+export function normalizeObject(object, rotate) {
   if (Array.isArray(rotate)) object.rotation.set(...rotate.map((d) => (d || 0) * DEG));
   const holder = new THREE.Group();
   holder.add(object);

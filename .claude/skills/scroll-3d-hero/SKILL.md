@@ -1,6 +1,6 @@
 ---
 name: scroll-3d-hero
-description: Build scroll-driven 3D heroes, walking 3D characters and dot-matrix footer wordmarks for websites. A product (plate, bowl, cup, bottle, shoe, any GLB) floats in the hero, revolves and flips as the visitor scrolls, and lands in a product card, like the plate on kanaknaturals.com. An animated animal or mascot (fox, snow leopard, any rigged GLB) walks, runs and pauses through the page in step with the scroll. A brand name or logo drawn in dots flies in at the footer and scatters from the cursor, like unitedcarriers.com. Ships drop-in runtimes, templates and a screenshot checker. Use this whenever someone wants a 3D or WebGL hero, a product that rotates, spins or flips on scroll, an animal or character moving through the site, a scroll-linked 3D animation, Three.js on a landing page, a dotted, particle or halftone logo, an interactive footer wordmark, or an awwwards-style effect copied from a site they saw, even if they never say "Three.js" or "canvas".
+description: Build scroll-driven 3D and dot-matrix effects for websites. A product (plate, cup, bottle, any GLB) floats in the hero, revolves and lands in a product card, like kanaknaturals.com. An animated animal or mascot (fox, snow leopard, any rigged GLB) walks, leaps and pauses through the page with the scroll. A brand name or logo drawn in dots flies in at the footer and scatters from the cursor, like unitedcarriers.com. A dot story combines them: the animal drawn as dots pours through an hourglass beside text boxes, runs out and becomes the dotted wordmark. Ships drop-in runtimes, templates and a screenshot checker. Use this whenever someone wants a 3D or WebGL hero, a product that spins or flips on scroll, an animal or character moving through the site, particles or dots that morph between shapes, a dotted or halftone logo, an interactive footer wordmark, or an awwwards-style effect copied from a site they saw, even if they never say "Three.js" or "canvas".
 ---
 
 # Scroll 3D hero
@@ -32,6 +32,9 @@ How it works, in four parts:
 | `references/choreography.md` | Keyframe recipes, plus a breakdown of how kanaknaturals.com does it. Read it when designing the motion. |
 | `references/models.md` | Getting, exporting and compressing a real product model. Read it when the user has or needs a GLB. |
 | `references/frameworks.md` | React/Next.js, Vue, Svelte, Astro, Vite, WordPress/Webflow/Shopify setup. Read it for anything but plain HTML. |
+| `assets/dot-story.js` | One field of dots for the whole page: an animated character drawn as dots, an hourglass it pours through, and the dotted wordmark it ends as. Pointer scatters them. |
+| `assets/template-dot-story.html` | The Snolep dot story: dotted fox leaps, pours through an hourglass beside text boxes, runs out, becomes SNOLEP TECHNOLOGIES. |
+| `references/dot-story.md` | How the dot story works, its page structure, keyframes (`form`, `sand`), options and pitfalls. Read it before building one. |
 | `assets/dot-wordmark.js` | Dot-matrix footer wordmark: text or a logo drawn in dots that fly in and scatter away from the pointer. No dependencies. |
 | `references/dot-wordmark.md` | Wordmark setup, options, logo mode, tuning, and how unitedcarriers.com does it. Read it before adding a wordmark. |
 
@@ -221,6 +224,28 @@ createScroll3DHero({
 - **A video instead:** if the character only ever walks across side-on, a looping video with a
   transparent background can be cheaper (WebM VP9 with alpha, plus HEVC with alpha for Safari).
   Choose 3D when it needs to turn, face the viewer or land in perspective.
+
+## Dot story: the character, an hourglass and the wordmark, all in dots
+
+When the animal, the transitions and the logo should all be one continuous field of dots, use
+`assets/dot-story.js` (template: `assets/template-dot-story.html`). The rigged model is rendered off
+screen every frame and sampled as dots, so the dotted animal keeps its real gait, scrubbed leaps and
+stillness. The same dots pour into an hourglass in a sticky dark panel while text boxes scroll by,
+drain through its neck, re-form the animal at its base, and finally settle into the brand wordmark at
+the footer. The cursor scatters them in every form.
+
+```js
+createDotStory({
+  canvas: '#dots',                                    // position: fixed; inset: 0
+  character: { url: 'fox.glb', animation: { idle: 'Survey', walk: 'Walk', run: 'Run', still: 'pose' } },
+  hourglass: { anchor: '#hourglass', panel: '#panel' },
+  logo: { anchor: '#logo', text: 'SNOLEP TECHNOLOGIES' },
+  keyframes: [ /* x, y | anchor, size, pitch, clip/clipTime, form: 'character'|'hourglass'|'logo', sand */ ],
+});
+```
+
+Keyframes run on whole-page progress (`at: '#id'`, with `after` in screens). Read
+`references/dot-story.md` for the page structure, a full keyframe walkthrough and the tuning notes.
 
 ## Dot-matrix footer wordmark
 
