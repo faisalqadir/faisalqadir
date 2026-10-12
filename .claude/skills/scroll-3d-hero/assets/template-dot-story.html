@@ -61,8 +61,8 @@
   .hourglass .glass { fill: none; stroke: var(--panel-line); stroke-width: .8; vector-effect: non-scaling-stroke; }
   .hourglass .frame { fill: var(--panel-line); }
   .hg-mark { position: absolute; left: 50%; width: 1px; height: 1px; }
-  .hg-mark.top { top: 6%; }
-  .hg-mark.bottom { top: 104%; }
+  .hg-mark.top { top: 0; }          /* the fox stands here, then dives in */
+  .hg-mark.bottom { top: 100%; }    /* and comes back out here */
   .hg-copy { padding: 0 6vw; }
   .box { min-height: 100vh; display: grid; align-content: center; max-width: 520px; border-bottom: 1px solid var(--line); }
   .box:last-child { border-bottom: 0; }
@@ -121,8 +121,10 @@
     <div class="hg-panel" id="panel">
       <div class="hourglass" id="hourglass">
         <svg viewBox="0 0 100 150" aria-hidden="true">
-          <rect class="frame" x="4" y="0" width="92" height="4"></rect>
-          <rect class="frame" x="4" y="146" width="92" height="4"></rect>
+          <rect class="frame" x="4" y="0" width="27" height="4"></rect>
+          <rect class="frame" x="69" y="0" width="27" height="4"></rect>
+          <rect class="frame" x="4" y="146" width="27" height="4"></rect>
+          <rect class="frame" x="69" y="146" width="27" height="4"></rect>
           <rect class="frame" x="6" y="4" width="1.2" height="142"></rect>
           <rect class="frame" x="92.8" y="4" width="1.2" height="142"></rect>
           <path class="glass" data-hourglass-glass d=""></path>
@@ -192,33 +194,32 @@
   // Credit the fox's authors wherever you use it (see the footer). Swap in your own rigged model here.
   const FOX = 'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Assets@edc7c9e67c639d230715049ee31f9a96a6babbbe/Models/Fox/glTF-Binary/Fox.glb';
 
-  const leap = (x0, y0, apex, land, s) => [
-    // stands upper right, then a scroll-scrubbed diagonal leap down to the lower left
-    { at: '#leap', after: -0.7, x: x0, y: y0, pitch: 0 },
+  // One story, tuned per screen size: where it stands, the top of its leap, its size, where it runs to.
+  const story = ({ stand, apex, size: s, runTo, out }) => [
+    { at: 0, form: 'character', x: stand[0], y: stand[1], size: s, pitch: 0 },
+    // a scroll-scrubbed leap, down and to the left...
+    { at: '#leap', after: -0.7, x: stand[0], y: stand[1], pitch: 0 },
     { at: '#leap', after: -0.7, clip: 'Run', clipTime: 0 },
-    { at: '#leap', after: -0.52, pitch: 16 },                                  // take-off, nose up
+    { at: '#leap', after: -0.52, pitch: 16 },                                     // take-off, nose up
     { at: '#leap', after: -0.42, x: apex[0], y: apex[1], size: s * 1.12, ease: 'easeOut' },
-    { at: '#leap', after: -0.2, pitch: -22 },                                  // diving, nose down
-    { at: '#leap', after: 0, x: land[0], y: land[1], size: s, pitch: -6, ease: 'easeIn' },
-    { at: '#leap', after: 0, clip: 'Run', clipTime: 1, ease: 'linear' },       // one bound of the run cycle
-    { at: '#leap', after: 0.12, pitch: 0 },
-    { at: '#leap', after: 0.45, x: land[0], y: land[1] },                      // stands still
-  ];
-  const middle = (runTo, s) => [
-    // runs to the top of the hourglass and pours in
-    { at: '#hourglass-section', after: 0, anchor: '#hg-top', size: s * 0.72 },
-    { at: '#hourglass-section', after: 0, form: 'character', sand: 0 },
-    { at: '#hourglass-section', after: 0.35, form: 'hourglass' },
-    // drains as the text boxes go by
-    { at: '#hourglass-section', after: 0.45, sand: 0 },
-    { at: '#hourglass-section', after: 1.55, sand: 1, ease: 'linear' },
-    // re-forms at the base and runs out
-    { at: '#hourglass-section', after: 1.6, form: 'hourglass' },
-    { at: '#hourglass-section', after: 1.6, anchor: '#hg-bottom', size: s * 0.72 },
-    { at: '#hourglass-section', after: 1.95, form: 'character' },
-    { at: '#run', after: 0, x: runTo[0], y: runTo[1], size: s },
+    { at: '#leap', after: -0.2, pitch: -22 },                                     // coming down
+    // ...that lands on top of the hourglass as it scrolls into view. From here on it is anchored to
+    // the glass, so it moves exactly with the page.
+    { at: '#hourglass-section', after: -0.55, anchor: '#hg-top', align: 'bottom', size: s * 0.72, pitch: 0, ease: 'easeIn' },
+    { at: '#hourglass-section', after: -0.55, clip: 'Run', clipTime: 1, ease: 'linear' },
+    // it tips over the rim and dives in head first; whatever is inside the glass crumbles into sand
+    { at: '#hourglass-section', after: -0.3, anchor: '#hg-top', align: 'bottom', pitch: 0 },
+    { at: '#hourglass-section', after: -0.12, pitch: -70, pour: 0 },
+    { at: '#hourglass-section', after: 0.55, anchor: '#hg-top', align: 'bottom', pour: 1, ease: 'linear' },
+    // the sand runs through the neck while the rest is still pouring in, then on past the boxes
+    { at: '#hourglass-section', after: -0.02, drain: 0 },
+    { at: '#hourglass-section', after: 1.7, drain: 1, ease: 'linear' },
+    // and it comes back out of the bottom, nose first, as the panel scrolls away
+    { at: '#hourglass-section', after: out[0], anchor: '#hg-bottom', align: 'top', pitch: -70, emerge: 0 },
+    { at: '#hourglass-section', after: out[1], anchor: '#hg-bottom', align: 'top', emerge: 1, ease: 'linear' },
+    // levels out and runs across, then streams into the wordmark as the footer arrives
+    { at: '#run', after: 0, x: runTo[0], y: runTo[1], size: s, pitch: 0 },
     { at: '#run', after: 0.15, x: runTo[0], y: runTo[1] },
-    // and finally streams down into the wordmark as the footer arrives
     { at: '#run', after: 0.15, form: 'character' },
     { at: 1, form: 'logo' },
   ];
@@ -231,20 +232,11 @@
     },
     hourglass: { anchor: '#hourglass', panel: '#panel' },
     logo: { anchor: '#logo', text: 'SNOLEP TECHNOLOGIES', dotsPerCap: 10 }, // its dot count is the pool size
-    keyframes: [
-      { at: 0, form: 'character', x: 0.5, y: 0.25, size: 0.36, pitch: 0 },
-      ...leap(0.5, 0.25, [0.2, 0.35], [-0.5, -0.55], 0.36),
-      ...middle([0.45, -0.5], 0.36),
-    ],
+    keyframes: story({ stand: [0.5, 0.25], apex: [0.2, 0.35], size: 0.36, runTo: [0.45, -0.5], out: [1.85, 2.35] }),
     responsive: {
       '(max-width: 767px)': {
         gap: 3,
-        keyframes: [
-          // on phones it leaps up into the top half, clear of the caption that scrolls in below
-          { at: 0, form: 'character', x: 0.35, y: -0.5, size: 0.42, pitch: 0 },
-          ...leap(0.35, -0.5, [0.1, 0.12], [-0.45, 0.32], 0.42),
-          ...middle([0.4, -0.7], 0.42),
-        ],
+        keyframes: story({ stand: [0.35, -0.5], apex: [0.1, 0.12], size: 0.42, runTo: [0.4, -0.7], out: [1.8, 2.25] }),
       },
     },
   });

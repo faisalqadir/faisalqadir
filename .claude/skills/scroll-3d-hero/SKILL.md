@@ -231,14 +231,15 @@ When the animal, the transitions and the logo should all be one continuous field
 `assets/dot-story.js` (template: `assets/template-dot-story.html`). Exactly the same dots travel the
 whole page:
 
-1. The rigged model is rendered lit every frame and Atkinson-dithered into those dots, so the animal
-   looks 3D and keeps its real gait, scrubbed leaps and stillness.
-2. The dots fall through the top of an hourglass in a sticky dark panel while text boxes scroll by,
-   and drain through its neck.
-3. They re-form the animal at the hourglass's base.
-4. They settle into the brand wordmark at the footer.
+1. A lit render of the rigged model is Atkinson-dithered once and every dot is pinned to the surface
+   under it, so the animal looks 3D and holds together however fast it leaps, runs or turns.
+2. It lands on top of an hourglass as the glass scrolls into view (anchored, so it moves exactly with
+   the page), dives in head first and crumbles into sand. The sand runs through the neck while more is
+   still pouring in, as text boxes scroll past a sticky dark panel.
+3. The animal comes back out of the bottom, nose first.
+4. The dots stream down into the brand wordmark at the footer.
 
-The cursor scatters them in every form.
+The cursor scatters them in every form, and nothing moves while the page is still.
 
 ```js
 createDotStory({
@@ -246,7 +247,7 @@ createDotStory({
   character: { url: 'fox.glb', animation: { idle: 'Survey', walk: 'Walk', run: 'Run', still: 'pose' } },
   hourglass: { anchor: '#hourglass', panel: '#panel' },
   logo: { anchor: '#logo', text: 'SNOLEP TECHNOLOGIES' },
-  keyframes: [ /* x, y | anchor, size, pitch, clip/clipTime, form: 'character'|'hourglass'|'logo', sand */ ],
+  keyframes: [ /* x, y | anchor + align, size, pitch, clip/clipTime, pour, drain, emerge, form: 'character'|'logo' */ ],
 });
 ```
 
