@@ -69,6 +69,7 @@ const DEFAULTS = {
   contrast: 1.9, // tone stretch before dithering the character: higher reads more 3D, lower flatter
   particles: 2400, // pool size when there's no logo (with a logo, the pool matches its dot count)
   damping: 8, // how quickly the story catches up with the scrollbar
+  maxLag: 0.12, // but it never trails it by more than this (in screens), so it keeps in step with the page on a fast flick
   pointer: { radius: 64, force: 5 },
   debug: false, // or ?dots-debug in the URL
 };
@@ -177,7 +178,10 @@ export function createDotStory(userOptions = {}) {
     let edge = 0;
     if (through && c.fit) {
       // passing through head first: its leading point is pour (or emerge) lengths past the anchor
-      edge = c.fit.lead - sample(f.align, p) * c.fit.extent;
+      // once the page has reached this keyframe, its body follows the flow its dots follow (which can
+      // lag a fast scroll); heading towards it, it aims for the keyframe's own value
+      const amount = flowNow[f.align] !== null && (live || lastP >= f.at) ? flowNow[f.align] : sample(f.align, p);
+      edge = c.fit.lead - amount * c.fit.extent;
     } else if (f.align && c.box) {
       edge = f.align === 'bottom' ? c.box.maxY : f.align === 'top' ? c.box.minY : (c.box.minY + c.box.maxY) / 2;
     }
@@ -731,11 +735,37 @@ export function createDotStory(userOptions = {}) {
   // while the character goes `crumble` further). `drained` dots have left the top bulb (the last
   // `stream` still on their way down). Once all the sand is at the bottom, `emerge` brings the
   // character out the same way: `leaving` dots have set off from the mound and `out` are back in it.
+  // The sand can only move so fast (per second). On a flick the flow falls behind the scroll and
+  // catches up a moment after it stops, instead of skipping dots past their way through the glass;
+  // ordinary scrolling stays under these.
+  const FLOW_SPEED = { pour: 3, drain: 1.2, emerge: 3 };
+  const flowNow = { pour: null, drain: null, emerge: null };
+  function limitFlow(pose, dt) {
+    const w = flowWindows();
+    let behind = false;
+    const step = (k, to) => {
+      if (flowNow[k] === null || reduce.matches || !ready) flowNow[k] = to;
+      else flowNow[k] += Math.max(-FLOW_SPEED[k] * dt, Math.min(FLOW_SPEED[k] * dt, to - flowNow[k]));
+      if (Math.abs(flowNow[k] - to) < 1e-6) flowNow[k] = to;
+      else behind = true;
+    };
+    // sand only moves on once it has landed: the drain waits for the pour, and the character only
+    // comes out once all the sand is at the bottom, so every dot takes its whole way through
+    step('pour', pose.pour);
+    const landed = countBelow(flowNow.pour - w.crumble);
+    step('drain', landed < N ? Math.min(pose.drain, landed / (N + w.stream)) : pose.drain);
+    const low = Math.min(1, Math.max(0, flowNow.drain)) * (N + w.stream) - w.stream;
+    step('emerge', low >= N ? pose.emerge : Math.min(pose.emerge, -w.exit));
+    return behind;
+  }
+
+  function flowWindows() {
+    return { crumble: (opts.hourglass && opts.hourglass.crumble) ?? 0.3, exit: 0.35, stream: Math.max(16, Math.round(N * 0.08)) };
+  }
+
   function computeFlow(pose) {
     if (!hourglass.el || !N) return null;
-    const crumble = (opts.hourglass && opts.hourglass.crumble) ?? 0.3;
-    const exit = 0.35;
-    const stream = Math.max(12, Math.round(N * 0.04));
+    const { crumble, exit, stream } = flowWindows();
     const pour = pose.pour;
     const emerge = pose.emerge;
     const inn = countBelow(pour);
@@ -967,7 +997,7 @@ export function createDotStory(userOptions = {}) {
       } else {
         const t = (f - 0.35) / 0.65;
         cell(hourglass.bottom, hourglass.bottomN, m, g);
-        out.x = nx + (out.x - nx) * t * t * t;
+        out.x = nx + (out.x - nx) * t ** 5; // a narrow column that only spreads onto the mound
         out.y = ny + (out.y - ny) * t * t;
       }
     } else if (st === BOTTOM) {
@@ -1004,6 +1034,9 @@ export function createDotStory(userOptions = {}) {
     if (!ready || reduce.matches || opts.damping <= 0) smooth = target;
     else {
       smooth += (target - smooth) * (1 - Math.exp(-opts.damping * dt));
+      // the page itself doesn't lag, so neither may the story by much: on a flick it keeps pace
+      const cap = ((opts.maxLag ?? 0.12) * vh) / range;
+      smooth = Math.min(target + cap, Math.max(target - cap, smooth));
       if (Math.abs(target - smooth) < 1e-5) smooth = target;
     }
     const p = smooth;
@@ -1012,7 +1045,8 @@ export function createDotStory(userOptions = {}) {
     const pose = {};
     for (const k of NUM_KEYS) pose[k] = sample(k, p);
     const form = sampleForm(p);
-    const fl = computeFlow(pose);
+    const flowBehind = limitFlow(pose, dt);
+    const fl = computeFlow(flowNow);
 
     // the character is needed while any dot is (or is turning into, or out of) part of it
     const allLogo = form.a === 'logo' && (form.blend === 0 || form.b === 'logo');
@@ -1048,6 +1082,7 @@ export function createDotStory(userOptions = {}) {
     const R2 = R * R;
     const active = now < pointer.until && !reduce.matches;
     let moving = false;
+    let lagSum = 0, lagMax = 0, lagN = 0; // debug: how far the character's dots trail their places
     for (let i = 0; i < N; i++) {
       const k = pos[i];
       // The place it fills on the character decides when it leaves for the logo (in that order,
@@ -1105,20 +1140,27 @@ export function createDotStory(userOptions = {}) {
       px[i] += vx[i] * step + (out.x - px[i]) * kk;
       py[i] += vy[i] * step + (out.y - py[i]) * kk;
       if (!moving && (Math.abs(out.x - px[i]) + Math.abs(out.y - py[i]) > 0.2 || Math.abs(vx[i]) + Math.abs(vy[i]) > 0.05)) moving = true;
+      if (debugEl && st === BODY) {
+        const lag = Math.hypot(out.x - px[i], out.y - py[i]);
+        lagSum += lag;
+        lagN++;
+        if (lag > lagMax) lagMax = lag;
+      }
     }
     paint();
 
     // only clips that play in time keep the loop going; scrubbed and held poses are static
     const st = character.anim && charOn ? character.anim.state : 'idle';
-    const animating = st === 'walk' || st === 'run' || st === 'manual' || (st === 'idle' && character.anim?.conf.still === 'idle');
+    const animating = flowBehind || st === 'walk' || st === 'run' || st === 'manual' || (st === 'idle' && character.anim?.conf.still === 'idle');
     const settled = !moving && !active && smooth === target && !animating;
     canvas.dataset.settled = String(settled);
     if (debugEl) {
-      const flowText = fl ? `pour ${pose.pour.toFixed(2)} drain ${pose.drain.toFixed(2)} emerge ${pose.emerge.toFixed(2)}  in ${fl.inn} landed ${fl.landed} drained ${fl.drained | 0} out ${fl.out}` : '';
+      const flowText = fl ? `pour ${fl.pour.toFixed(2)} drain ${flowNow.drain.toFixed(2)} emerge ${fl.emerge.toFixed(2)}${flowBehind ? ' (catching up)' : ''}  in ${fl.inn} landed ${fl.landed} drained ${fl.drained | 0} out ${fl.out}` : '';
       debugEl.textContent =
         `dot-story  progress ${p.toFixed(3)}  form ${form.a}${form.blend > 0 ? ` → ${form.b} ${(form.blend * 100) | 0}%` : ''}\n` +
         `size ${pose.size.toFixed(2)} pitch ${pose.pitch.toFixed(0)}  ${flowText}\n` +
-        `dots ${N}  pinned ${character.bound}  ${character.anim ? character.anim.state : ''}  centre ${character.cx.toFixed(1)},${character.cy.toFixed(1)}`;
+        `dots ${N}  pinned ${character.bound}  ${character.anim ? character.anim.state : ''}  centre ${character.cx.toFixed(1)},${character.cy.toFixed(1)}\n` +
+        `scroll lag ${((target - smooth) * range).toFixed(0)}px  body lag avg ${(lagSum / Math.max(1, lagN)).toFixed(1)} max ${lagMax.toFixed(0)}px`;
     }
     if (!settled) schedule();
     else lastTime = 0;

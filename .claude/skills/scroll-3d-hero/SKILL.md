@@ -251,6 +251,9 @@ createDotStory({
 });
 ```
 
+Check it in motion as well as at rest: `scripts/dot-story-motion.mjs` scrolls through it at fast
+speeds on a stepped 60 fps clock and reports whether the character holds together.
+
 Keyframes run on whole-page progress (`at: '#id'`, with `after` in screens). Read
 `references/dot-story.md` for the page structure, a full keyframe walkthrough and the tuning notes.
 

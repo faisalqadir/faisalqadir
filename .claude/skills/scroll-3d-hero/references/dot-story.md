@@ -54,6 +54,11 @@ Technologies, with the Khronos sample fox standing in for the final animal).
 - **Into the wordmark.** The lowest dots leave first, so the character streams down into the name,
   which builds up from left to right.
 - **Colours.** Dots use the canvas's CSS `color`. Inside the dark panel they switch to `--panel-dots`.
+- **Fast scrolls.** The story eases after the scrollbar but never trails it by more than `maxLag`
+  (0.12 of a screen), so on a flick the character keeps in step with the page. The sand can only
+  move so fast: on a flick the pour, drain and emerge fall behind and catch up a moment after the
+  scroll stops, the drain waits for sand that has landed and the character only comes out once all
+  of it is at the bottom, so every dot takes its whole way through the glass however fast you go.
 - **Settling.** The loop stops once nothing moves. Scrolling, the pointer or a resize wakes it.
 
 ## Page structure
@@ -143,7 +148,8 @@ createDotStory({
   contrast: 1.9,     // tone stretch before dithering: higher = more 3D, lower = flatter
   dotRadius: null,   // one size for every form (default: from the wordmark's spacing)
   gap: 4,            // starting grid for the sand (it adjusts so each bulb holds the whole pool)
-  damping: 8, pointer: { radius: 64, force: 5 },
+  damping: 8, maxLag: 0.12, // eases after the scrollbar, but never more than this many screens behind
+  pointer: { radius: 64, force: 5 },
   particles: 2400,   // pool size if there's no logo
 });
 ```
@@ -170,8 +176,17 @@ Add `?dots-debug` to the URL for an overlay with progress, form, pose and flow c
   apart sideways: on phones the template keeps copy in the left half and sends the fox up the right.
 - **Pour and drain in proportion.** If `drain` runs ahead of `pour` it waits for sand to land, so the
   stream thins out. Starting `drain` just as the first sand lands looks most natural.
-- **Check the motion, not just the frames.** `?dots-debug` shows the character's centre; stepping the
-  scroll and plotting it shows any stop or jolt at a glance.
+- **Check the motion, not just the frames, and at speed.** `?dots-debug` shows the character's
+  centre, how far the story trails the scrollbar and how far the character's dots trail their places.
+  `scripts/dot-story-motion.mjs` scrolls at set speeds (3,000 and 6,000 px/s and page-down jumps) on
+  a stepped 60 fps clock, saves frames and reports both numbers:
+
+  ```bash
+  node scripts/dot-story-motion.mjs page.html --from "#hourglass-section:-1.9" --to "#run:0.3"
+  ```
+
+  The dots should trail their places by 0 (a few pixels at most, for one frame or two) at every
+  speed; anything more means dots are skipping a step of the story.
 - **Give the ending room.** The merge into the wordmark needs a few hundred pixels of scrolling. The
   template's run section is 160vh, with its copy low enough that the fox runs in above it.
 - **Pool size versus character size.** The dots are shared, so a bigger pool means a finer, denser
