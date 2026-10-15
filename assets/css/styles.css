@@ -420,6 +420,11 @@ html:not(.js) .wordmark, .reduce-motion .wordmark {
 .lg--round svg { width: 34px; height: 17px; }
 .lg--light { font-weight: 300; font-size: 32px; letter-spacing: -.02em; }
 .lg--light svg { width: 34px; height: 15px; fill: none; }
+.lg--fang { font-size: 44px; }
+.lg--meta { font-weight: 600; letter-spacing: -.02em; }
+.lg--amazon { font-weight: 800; letter-spacing: -.04em; }
+.lg--netflix { font-family: var(--display); font-size: 48px; letter-spacing: .03em; }
+.lg--google { font-weight: 500; letter-spacing: -.02em; }
 
 /* ---------- Coming soon ---------- */
 .soon { padding: 60px var(--gutter) 140px; text-align: center; display: flex; flex-direction: column; align-items: center; }
