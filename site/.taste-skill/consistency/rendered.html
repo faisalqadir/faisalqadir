@@ -1,0 +1,784 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Snolep Technologies | Websites and web platforms from Ladakh</title>
+<meta name="description" content="Snolep Technologies builds software products, association platforms and websites from Ladakh, in the Indian Himalaya, and offers sustainability consulting.">
+<meta property="og:title" content="Snolep Technologies">
+<meta property="og:description" content="Websites, member platforms and web applications, built in Ladakh.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#e9f7f4">
+<link rel="icon" href="./img/icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,400..800&amp;display=swap" rel="stylesheet">
+<link rel="preload" as="image" href="./img/snolep-leopard.webp">
+
+<style>
+  /* Snolep palette: navy type, mint page (the sky of the mountain drawing), teal for the one action. */
+  :root {
+    --navy: #002735;
+    --teal: #00a6a2;
+    --teal-ink: #007a78;      /* teal dark enough for small text on the mint */
+    --aqua: #addcda;
+    --mint: #e9f7f4;
+    --white: #fffeff;
+    --muted: #33515b;
+    --display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+    --body: "Archivo", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --rail: 248px;
+    --pad: clamp(20px, 4vw, 56px);
+    --ease: cubic-bezier(.2, .8, .2, 1);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { overflow-x: clip; scroll-padding-top: 20px; }
+  body { background: var(--mint); color: var(--navy); font: 400 17px/1.55 var(--body); -webkit-font-smoothing: antialiased; }
+  a { color: inherit; }
+  img { display: block; max-width: 100%; }
+  :focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; border-radius: 4px; }
+  .skip { position: fixed; left: 12px; top: -60px; z-index: 50; padding: 10px 16px; border-radius: 8px; background: var(--navy); color: var(--mint); }
+  .skip:focus { top: 12px; }
+
+  /* the one canvas that draws every dot; text and cards sit above it, section grounds below */
+  .dots { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 2; pointer-events: none; }
+  .wrap { position: relative; z-index: 3; width: min(1240px, 100% - 2 * var(--pad)); margin-inline: auto; }
+  .label { font: 500 13px/1.3 var(--body); color: var(--muted); }
+  h1, h2, h3 { font-family: var(--display); font-stretch: 112%; letter-spacing: -.02em; text-wrap: balance; }
+  h2 { font-size: clamp(32px, 3.4vw, 48px); line-height: 1.05; font-weight: 500; letter-spacing: -.025em; }
+  h3 { font-weight: 500; letter-spacing: -.01em; }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; padding: 0 26px; border: 1.5px solid var(--navy); border-radius: 999px;
+         font: 600 16px/1 var(--body); text-decoration: none; cursor: pointer; transition: transform .25s var(--ease), background .2s ease, color .2s ease, border-color .2s ease; }
+  .btn.primary { background: var(--teal); border-color: var(--teal); color: var(--navy); }
+  .btn.primary:hover { background: var(--navy); border-color: var(--navy); color: var(--mint); }
+  .btn.ghost { background: transparent; color: var(--navy); }
+  .btn.ghost:hover { background: var(--navy); color: var(--mint); }
+  .btn:hover { transform: translateY(-2px); }
+  .btn:active { transform: translateY(0) scale(.98); }
+  .btn i { font-style: normal; transition: transform .25s var(--ease); }
+  .btn:hover i { transform: translateX(3px); }
+
+  /* header (narrow screens; wide screens have the rail) */
+  .site-head { position: fixed; top: 0; left: 0; right: 0; z-index: 10; background: rgba(233, 247, 244, .86); backdrop-filter: blur(10px); border-bottom: 1px solid rgba(173, 220, 218, .6); }
+  .site-head .wrap { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+  .brand { font: 800 17px/1 var(--display); font-stretch: 125%; letter-spacing: .02em; text-decoration: none; }
+  .menu-btn { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 18px; border: 1px solid currentColor; border-radius: 999px;
+              background: none; color: inherit; font: 500 12px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; cursor: pointer; }
+  .site-head.on-dark { background: rgba(0, 39, 53, .86); border-color: rgba(173, 220, 218, .2); color: var(--mint); }
+  .menu-btn b { font: 400 18px/10px var(--body); }
+
+  /* the rail: a panel that stays put on the right on wide screens (the index, with where you are;
+     the work; contact; the local time; let's talk). Under 1100px it slides in off the Menu button. */
+  :root { --rail: 248px; }
+  .rail { position: fixed; top: 0; right: 0; bottom: 0; width: var(--rail); z-index: 30; display: flex; flex-direction: column;
+          padding: 26px 24px 20px; overflow-y: auto; overscroll-behavior: contain; background: var(--white); color: var(--navy);
+          border-left: 1px solid var(--aqua); }
+  .rail-brand { display: block; text-decoration: none; font: 900 21px/1 var(--display); font-stretch: 125%; letter-spacing: .02em; }
+  .rail-brand small { display: block; margin-top: 6px; font: 500 9px/1 var(--mono); letter-spacing: .32em; color: var(--muted); }
+  .rail-block { border-top: 1px solid var(--aqua); padding: 16px 0 18px; }
+  .rail-brand + .rail-block, .rail-close + .rail-block { margin-top: 24px; }
+  .rail-label { display: block; margin-bottom: 10px; font: 500 13px/1.2 var(--body); color: var(--muted); }
+  .rail-index a { display: grid; grid-template-columns: 28px 1fr auto; align-items: baseline; padding: 8px 0; text-decoration: none;
+                  font: 500 15px/1.2 var(--body); transition: color .25s ease; }
+  .rail-index a span { font: 500 10px/1 var(--mono); color: var(--muted); transition: color .25s ease; }
+  .rail-index a::after { content: ''; align-self: center; width: 6px; height: 6px; border-radius: 50%; background: var(--teal); opacity: 0; transform: scale(.3); transition: opacity .25s ease, transform .25s ease; }
+  .rail-index a:hover, .rail-index a[aria-current="true"], .rail-index a[aria-current="true"] span { color: var(--teal-ink); }
+  .rail-index a[aria-current="true"]::after { opacity: 1; transform: none; }
+  .rail-links a { display: flex; justify-content: space-between; align-items: baseline; padding: 5px 0; font-size: 13px; text-decoration: none; transition: color .2s ease; }
+  .rail-links a i { font: 500 11px/1 var(--mono); font-style: normal; color: var(--muted); transition: transform .25s ease, color .2s ease; }
+  .rail-links a:hover, .rail-links a:hover i { color: var(--teal); }
+  .rail-links a:hover i { transform: translate(2px, -2px); }
+  .rail-mail { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+  .rail-mail a { text-decoration: none; }
+  .rail-mail a:hover { color: var(--teal); }
+  .copy { padding: 3px 6px; border: 1px solid var(--aqua); border-radius: 4px; background: none; color: var(--muted); font: 500 10px/1 var(--mono); cursor: pointer; }
+  .copy:hover { color: var(--navy); border-color: var(--navy); }
+  .rail-time { display: flex; justify-content: space-between; margin-top: 22px; font-size: 13px; color: var(--muted); }
+  .rail-time time { font: 500 12px/1.4 var(--mono); color: var(--navy); }
+  .rail-foot { margin-top: auto; padding-top: 24px; display: grid; justify-items: center; gap: 12px; }
+  .rail-cta { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 6px 6px 6px 22px; border-radius: 999px;
+              background: var(--teal); color: var(--navy); text-decoration: none; font: 600 15px/1 var(--body); transition: background .25s ease, color .25s ease; }
+  .rail-cta i { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; background: var(--white); color: var(--navy);
+                font: 600 16px/1 var(--body); font-style: normal; transition: transform .35s ease; }
+  .rail-cta:hover { background: var(--navy); color: var(--mint); }
+  .rail-cta:hover i { transform: translateX(3px); }
+  .rail-top { padding: 4px; border: 0; background: none; color: var(--muted); font: 400 12px/1 var(--body); cursor: pointer; }
+  .rail-top:hover { color: var(--navy); }
+  .rail-close { display: none; }
+  .rail-scrim { display: none; }
+  @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+  .rail-links span.off { display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; }
+  .rail-brand { font-weight: 800; }
+  .rail-cta { min-height: 52px; }
+  @media (min-width: 1100px) {
+    body { padding-right: var(--rail); }
+    .site-head { display: none; }
+  }
+  @media (max-width: 1099px) {
+    .rail { width: min(320px, 86vw); transform: translateX(100%); visibility: hidden; transition: transform .45s var(--ease), visibility 0s .45s; }
+    .rail.open { transform: none; visibility: visible; box-shadow: -24px 0 60px rgba(0, 39, 53, .18); transition: transform .45s var(--ease); }
+    .rail-close { display: grid; place-items: center; position: absolute; top: 14px; right: 14px; width: 44px; height: 44px; border: 1px solid var(--aqua);
+                  border-radius: 50%; background: none; color: var(--navy); font: 400 20px/1 var(--body); cursor: pointer; }
+    .rail-scrim { display: block; position: fixed; inset: 0; z-index: 29; background: rgba(0, 39, 53, .35); opacity: 0; pointer-events: none; transition: opacity .3s ease; }
+    .rail-scrim.open { opacity: 1; pointer-events: auto; }
+    .rail-index a, .rail-links a { padding-block: 12px; }
+  }
+
+  /* hero: what we do on the left, the logo on the right; its snow leopard is drawn by the dots */
+  .hero { min-height: 100vh; min-height: 100svh; display: flex; flex-direction: column; }
+  .hero .wrap { flex: 1; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); align-items: center; gap: clamp(24px, 4vw, 72px); padding: 96px 0 24px; }
+  .hero h1 { font-size: clamp(38px, 4.6vw, 72px); line-height: 1; font-weight: 500; letter-spacing: -.035em; }
+  .hero h1 em { font-style: normal; color: var(--teal-ink); }
+  .hero p.lede { margin-top: 24px; max-width: 30em; font-size: clamp(17px, 1.35vw, 20px); color: var(--muted); }
+  .hero .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 34px; }
+  .logo-art { position: relative; justify-self: center; width: min(58vh, 100%); aspect-ratio: 1150 / 1194; }
+  .logo-art img { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .built-for { position: relative; z-index: 3; width: min(1240px, 100% - 2 * var(--pad)); margin: 0 auto; padding: 20px 0 28px; border-top: 1px solid var(--aqua);
+               display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 36px; }
+  .built-for ul { display: contents; list-style: none; }
+  .built-for li { font: 600 15px/1.2 var(--display); font-stretch: 112%; }
+  @media (prefers-reduced-motion: no-preference) {
+    .enter > * { opacity: 0; transform: translateY(18px); animation: rise .9s var(--ease) forwards; }
+    .enter > :nth-child(2) { animation-delay: .1s; } .enter > :nth-child(3) { animation-delay: .2s; }
+    .logo-art .logo-word { opacity: 0; animation: rise .9s var(--ease) .25s forwards; }
+    @keyframes rise { to { opacity: 1; transform: none; } }
+  }
+
+  section { padding: clamp(72px, 11vh, 128px) 0; }
+  .head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 16px 48px; margin-bottom: clamp(28px, 5vh, 52px); }
+  .head p { max-width: 30em; color: var(--muted); }
+
+  /* what we build: each kind of work with the one we made; the screenshots are whole pages that
+     scroll through their frame on hover */
+  .work-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(16px, 2vw, 28px); }
+  .card { display: flex; flex-direction: column; background: var(--white); border: 1px solid var(--aqua); border-radius: 16px; overflow: hidden;
+          transition: box-shadow .35s var(--ease), border-color .2s ease; }
+  .card:hover { box-shadow: 0 18px 40px -18px rgba(0, 39, 53, .35); border-color: var(--navy); }
+  .card .shot { position: relative; aspect-ratio: 1152 / 600; overflow: hidden; background: var(--navy); }
+  .card .shot img { position: absolute; left: 0; top: 0; width: 100%; height: auto; transition: top .7s var(--ease), transform .7s var(--ease); }
+  @media (hover: hover) and (prefers-reduced-motion: no-preference) {
+    .card:hover .shot img, .card:focus-within .shot img { top: 100%; transform: translateY(-100%); transition-duration: 7s; transition-timing-function: cubic-bezier(.4, 0, .6, 1); }
+  }
+  .card .meta { flex: 1; display: flex; flex-direction: column; gap: 8px; padding: 18px 22px 20px; }
+  .card h3 { font-size: 20px; line-height: 1.25; }
+  .card .meta p { font-size: 15px; color: var(--muted); }
+  .card .meta p.eg { margin-top: auto; padding-top: 6px; color: var(--navy); font-weight: 600; }
+  .card .eg a { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; text-decoration-color: var(--teal); text-underline-offset: 4px; }
+  .card .eg a i { font-style: normal; color: var(--teal-ink); transition: transform .25s var(--ease); }
+  .card .eg a:hover { color: var(--teal-ink); }
+  .card .eg a:hover i { transform: translate(2px, -2px); }
+  .card .plate { display: grid; place-items: center; text-align: center; padding: 8%; color: var(--mint);
+                 background: radial-gradient(circle, rgba(173, 220, 218, .28) 1.2px, transparent 1.6px) 0 0 / 14px 14px, var(--navy); }
+  .card .plate b { font: 500 clamp(22px, 2.6vw, 36px)/1.05 var(--display); font-stretch: 112%; letter-spacing: -.02em; }
+  .card.wide { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .card.wide .shot { aspect-ratio: auto; min-height: 260px; }
+  .card.wide .meta { justify-content: center; padding: clamp(22px, 3vw, 40px); }
+  .card.wide .meta p.eg { margin-top: 8px; }
+
+  /* values and standards: a peak beside four rows */
+  .values .wrap { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: clamp(28px, 5vw, 88px); align-items: center; }
+  .values-pic { width: 100%; height: auto; border-radius: 16px; }
+  .values .sub { margin-top: 14px; max-width: 30em; color: var(--muted); }
+  .std { list-style: none; margin-top: clamp(24px, 4vh, 40px); border-top: 1px solid var(--navy); }
+  .std li { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: 6px 28px; align-items: baseline; padding: 20px 0 22px; border-bottom: 1px solid var(--aqua); }
+  .std h3 { font-size: clamp(19px, 1.6vw, 22px); line-height: 1.25; }
+  .std p { color: var(--muted); }
+
+  /* inspiration: the snow leopard's four habits, and the mountain it runs; each habit lights up as
+     the leopard passes its mark on the ridge */
+  .traits { list-style: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(16px, 2vw, 28px); margin-top: clamp(28px, 5vh, 48px); }
+  .traits li { position: relative; padding-top: 18px; border-top: 1px solid var(--aqua); }
+  .traits li::before { content: ''; position: absolute; left: 0; top: -1px; height: 2px; width: 100%; background: var(--navy); transform: scaleX(var(--p, 0)); transform-origin: left; }
+  .traits .n { display: inline-grid; place-items: center; width: 26px; height: 26px; margin-bottom: 12px; border: 1px solid var(--navy); border-radius: 50%;
+               font: 500 13px/1 var(--body); transition: background .4s ease, color .4s ease, border-color .4s ease; }
+  .traits h3 { font-size: 20px; line-height: 1.25; }
+  .traits p { margin-top: 8px; font-size: 15px; color: var(--muted); }
+  .traits li.is-on .n { background: var(--navy); color: var(--mint); }
+
+  /* the range the snow leopard runs down */
+  .roots { padding-bottom: 0; }
+  .roots .text { max-width: 640px; }
+  .roots .text p { margin-top: 14px; color: var(--muted); }
+  .range { position: relative; z-index: 1; margin-top: clamp(40px, 9vh, 96px); overflow: hidden; }
+  .range-in { position: relative; aspect-ratio: 1672 / 941; }
+  .range-in > img { width: 100%; height: 100%; }
+  .range-fade { position: absolute; left: 0; right: 0; bottom: -1px; height: 34%; background: linear-gradient(rgba(0, 39, 53, 0), rgba(0, 39, 53, .55) 45%, rgba(0, 39, 53, .9) 78%, var(--navy)); }
+
+  /* the close: a short brief, then the name in dots */
+  .finale { background: var(--navy); color: var(--mint); padding: clamp(64px, 10vh, 112px) 0 0; min-height: 100vh; display: flex; flex-direction: column; }
+  .contact { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: clamp(28px, 5vw, 88px); align-items: start; }
+  .contact .say p { margin-top: 20px; max-width: 24em; color: var(--aqua); }
+  .contact .say a.ig { display: inline-flex; align-items: center; min-height: 44px; margin-top: 14px; font-weight: 600; text-decoration-color: var(--teal); text-underline-offset: 5px; }
+  .contact .say a.ig:hover { color: var(--aqua); }
+  form.brief { display: grid; gap: 18px; padding: clamp(20px, 2.4vw, 32px); border: 1px solid rgba(173, 220, 218, .28); border-radius: 16px; background: #04303f; }
+  .brief legend, .brief label { display: block; margin-bottom: 8px; font: 500 14px/1.3 var(--body); color: var(--aqua); }
+  .brief fieldset { border: 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chips label { margin: 0; font: 500 15px/1 var(--body); color: var(--mint); cursor: pointer; }
+  .chips input { position: absolute; opacity: 0; }
+  .chips span { display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border: 1px solid rgba(173, 220, 218, .4); border-radius: 999px; transition: background .2s ease, color .2s ease, border-color .2s ease; }
+  .chips label:hover span { border-color: var(--mint); }
+  .chips input:checked + span { background: var(--mint); border-color: var(--mint); color: var(--navy); }
+  .chips input:focus-visible + span { outline: 2px solid var(--teal); outline-offset: 3px; }
+  .brief .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .brief input[type=text], .brief input[type=email], .brief textarea { width: 100%; padding: 13px 14px; border: 1px solid rgba(173, 220, 218, .4); border-radius: 10px; background: transparent; color: var(--mint); font: 400 16px/1.45 var(--body); }
+  .brief textarea { min-height: 96px; resize: vertical; }
+  .brief ::placeholder { color: rgba(173, 220, 218, .6); }
+  .brief .send { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; }
+  .brief .btn { background: var(--teal); border-color: var(--teal); color: var(--navy); }
+  .brief .btn:disabled { opacity: .6; cursor: default; }
+  .brief .btn:hover { background: var(--mint); border-color: var(--mint); }
+  .brief .status { flex: 1 1 14em; font-size: 14px; line-height: 1.4; color: var(--aqua); }
+  .name { position: relative; z-index: 3; width: min(1240px, 100% - 2 * var(--pad)); margin: auto auto 0; padding-top: clamp(40px, 8vh, 88px); }
+  #wordmark { width: 100%; height: 90px; }
+  .foot { position: relative; z-index: 3; width: min(1240px, 100% - 2 * var(--pad)); margin: 0 auto; padding: 22px 0 26px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 24px; font-size: 14px; color: var(--aqua); }
+  .foot a { display: inline-flex; align-items: center; min-height: 44px; margin-block: -12px; }
+
+  /* the cursor (fine pointers): a ring that fills with how far down the page you are; over the
+     contact section it becomes a "Work with us" bubble that smears behind itself as it moves */
+  .cursor, .cursor-ghost { position: fixed; left: 0; top: 0; z-index: 40; pointer-events: none; }
+  .cursor { width: 44px; height: 44px; margin: -22px 0 0 -22px; color: var(--navy); display: none;
+            transform: translate3d(var(--x, -100px), var(--y, -100px), 0); }
+  .cursor.on-dark { color: var(--aqua); }
+  .cursor svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); overflow: visible; transition: opacity .25s ease, transform .35s ease; }
+  .cursor circle { fill: none; stroke: currentColor; }
+  .cursor .track { stroke-width: 1; opacity: .25; }
+  .cursor .progress { stroke-width: 1.8; stroke-dasharray: 1 1; stroke-dashoffset: var(--left, 1); stroke: var(--teal); }
+  .cursor .disc, .cursor-ghost { width: 96px; height: 96px; border-radius: 50%; background: var(--teal); }
+  .cursor .disc { position: absolute; left: 50%; top: 50%; margin: -48px 0 0 -48px; display: grid; place-items: center; color: var(--navy);
+                  font: 500 14px/1.1 var(--body); text-align: center;
+                  transform: rotate(var(--angle, 0deg)) scale(calc(var(--s, 0) * var(--stretch, 1)), calc(var(--s, 0) / var(--stretch, 1))); }
+  .cursor .disc span { transform: rotate(calc(-1 * var(--angle, 0deg))); display: block; }
+  .cursor.is-link svg { opacity: 0; transform: rotate(-90deg) scale(.6); }
+  .cursor-ghost { margin: -48px 0 0 -48px; opacity: 0; will-change: transform, opacity; }
+  @media (pointer: fine) { .cursor { display: block; } }
+  @media (pointer: fine) and (min-width: 901px) { .finale.is-target, .finale.is-target a, .finale.is-target button { cursor: none; } }
+
+  /* on a desktop the form opens in a panel from the contact section; on a phone it stays in place */
+  .open-brief { display: none; margin-top: 28px; background: var(--teal); border-color: var(--teal); color: var(--navy); }
+  .open-brief:hover { background: var(--mint); border-color: var(--mint); }
+  .contact.form-away { grid-template-columns: 1fr; }
+  .contact.form-away h2 { font-size: clamp(48px, 7vw, 112px); line-height: .98; letter-spacing: -.04em; }
+  .contact.form-away .say p { font-size: 19px; max-width: 30em; }
+  .contact.form-away .open-brief { display: inline-flex; }
+  .brief-dialog { width: min(640px, 100% - 32px); max-height: calc(100vh - 48px); margin: auto; padding: 0; border: 0; border-radius: 18px; background: #04303f; color: var(--mint); overflow: auto; }
+  .brief-dialog::backdrop { background: rgba(0, 20, 28, .72); }
+  .brief-dialog .brief { border: 0; }
+  .brief-dialog .close { position: absolute; top: 14px; right: 14px; width: 44px; height: 44px; border: 1px solid rgba(173, 220, 218, .4); border-radius: 50%;
+                         background: none; color: var(--mint); font: 400 22px/1 var(--body); cursor: pointer; }
+  .brief-dialog .close:hover { border-color: var(--mint); }
+  .brief-dialog .brief { padding-top: 64px; }
+  .brief-dialog h3 { position: absolute; top: 24px; left: clamp(20px, 2.4vw, 32px); font-size: 20px; }
+
+  @media (max-width: 1240px) and (min-width: 901px) { .traits { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 900px) {
+    .hero .wrap { grid-template-columns: 1fr; padding-top: 96px; gap: 8px; }
+    .logo-art { order: -1; width: min(34vh, 62%); justify-self: start; margin-left: -4%; }
+    .hero .actions .btn, .brief .btn { width: 100%; }
+    .contact { grid-template-columns: 1fr; }
+    .values .wrap { grid-template-columns: 1fr; }
+    .values-pic { aspect-ratio: 16 / 10; object-fit: cover; object-position: 50% 20%; }
+    .std li { grid-template-columns: 1fr; }
+    .traits { grid-template-columns: 1fr 1fr; gap: 20px 16px; }
+    .work-grid, .brief .pair, .card.wide { grid-template-columns: 1fr; }
+    .card.wide .shot { aspect-ratio: 1152 / 600; min-height: 0; }
+    .range { margin-top: 32px; }
+    .range-in { width: 135%; margin-left: -16%; }
+  }
+  @media (max-width: 600px) { .traits { grid-template-columns: 1fr; } }
+</style>
+</head>
+
+<body>
+<a class="skip" href="#work">Skip to what we build</a>
+<canvas class="dots" aria-hidden="true" width="1440" height="900"></canvas>
+
+<header class="site-head">
+  <div class="wrap">
+    <a class="brand" href="#top">SNOLEP</a>
+    <button class="menu-btn" type="button" aria-controls="rail" aria-expanded="false">Menu <b aria-hidden="true">+</b></button>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero" id="hero" style="padding:0">
+    <div class="wrap">
+      <div class="enter">
+        <h1>Software, platforms and websites, <em>built in Ladakh.</em></h1>
+        <p class="lede">Snolep Technologies builds the software that associations, museums, hotels and businesses in the Himalaya run on, from member platforms to accounting and HR tools.</p>
+        <div class="actions">
+          <a class="btn primary" href="#contact">Start a project <i aria-hidden="true">→</i></a>
+          <a class="btn ghost" href="#work">See what we build</a>
+        </div>
+      </div>
+      <div class="logo-art">
+        <img class="logo-word" src="./img/snolep-wordmark.webp" width="1150" height="1194" alt="Snolep Technologies">
+        <img id="leopard" src="./img/snolep-leopard.webp" width="1150" height="1194" alt="" style="opacity: 1;">
+      </div>
+    </div>
+    <div class="built-for">
+      <span class="label">Our work</span>
+      <ul><li>ALATOA</li><li>ALHGHA</li><li>Fynivo</li><li>Innovate Office</li><li>Central Asian Museum</li><li>Crystalakmo</li></ul>
+    </div>
+  </section>
+
+  <section class="values" id="values">
+    <div class="wrap">
+      <img class="values-pic" src="./img/peak.webp" width="608" height="753" loading="lazy" alt="A jagged Himalayan peak under snow, drawn in the Snolep colours">
+      <div class="values-text">
+        <h2>Values and standards</h2>
+        <p class="sub">Four things we hold to on every project, and what each one means in the work.</p>
+        <ul class="std">
+          <li><h3>Opens on thin signal</h3><p>Compressed pictures, no heavy libraries, nothing waiting on a slow script.</p></li>
+          <li><h3>Starts on the phone</h3><p>Every screen is planned at phone width first, where most visitors arrive.</p></li>
+          <li><h3>Built by the people you talk to</h3><p>The team that writes your code answers your calls. No layer in between.</p></li>
+          <li><h3>Looked after past launch day</h3><p>We host, update and fix what we ship, through the winter too.</p></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="work" id="work">
+    <div class="wrap">
+      <div class="head">
+        <h2>What we build</h2>
+        <p>Software products, platforms and websites, and advice on working sustainably. Each kind below comes with one we have already made.</p>
+      </div>
+      <div class="work-grid">
+        <article class="card">
+          <div class="shot"><img src="./img/work-alatoa.webp" width="1152" height="3120" loading="lazy" alt="ALATOA website: Discover the land of high passes"></div>
+          <div class="meta"><h3>Association management and marketing platforms</h3><p>Membership, member directories, listings and news, together with the public site that markets the region to visitors.</p><p class="eg">Run by <a href="https://alatoa.in/" target="_blank" rel="noopener">ALATOA <i aria-hidden="true">↗</i></a> and <a href="https://alhgha.com/" target="_blank" rel="noopener">ALHGHA <i aria-hidden="true">↗</i></a></p></div>
+        </article>
+        <article class="card">
+          <div class="shot"><img src="./img/work-fynivo.webp" width="1152" height="3120" loading="lazy" alt="Fynivo website: Simplify your accounts"></div>
+          <div class="meta"><h3>Financial software</h3><p>Our own product: cloud accounting that connects businesses with their chartered accountants.</p><p class="eg">Our product <a href="https://fynivo.in/" target="_blank" rel="noopener">Fynivo <i aria-hidden="true">↗</i></a></p></div>
+        </article>
+        <article class="card">
+          <div class="shot plate"><!-- visual to come: Innovate Office screens, 1152 px wide --><b>Innovate Office</b></div>
+          <div class="meta"><h3>HR management software</h3><p>Employee records, attendance and leave in one system that the HR team and staff both use.</p><p class="eg">Our product <span>Innovate Office</span></p></div>
+        </article>
+        <article class="card">
+          <div class="shot"><img src="./img/work-museum.webp" width="1152" height="3120" loading="lazy" alt="Central Asian Museum website: A museum at the crossroads of Central Asia and Ladakh"></div>
+          <div class="meta"><h3>Websites with a CMS</h3><p>Sites for museums, hotels and institutions that their own staff keep up to date: rooms, collections, hours and news, without calling a developer.</p><p class="eg">Built for the <a href="https://centralasianmuseum.org/" target="_blank" rel="noopener">Central Asian Museum <i aria-hidden="true">↗</i></a></p></div>
+        </article>
+        <article class="card">
+          <div class="shot plate"><!-- visual to come: laundry system screens, 1152 px wide --><b>Crystalakmo</b></div>
+          <div class="meta"><h3>Laundry tracking and CRM</h3><p>Follows every item through the laundry cycle, runs the daily operation and keeps the customer relationship in one place.</p><p class="eg">Built for <span>Crystalakmo</span></p></div>
+        </article>
+        <article class="card">
+          <div class="shot plate"><!-- visual to come: a sustainability project picture, wide --><b>Sustainability</b></div>
+          <div class="meta"><h3>Sustainability consulting</h3><p>Advice for organisations that want to work more sustainably, grounded in what a fragile mountain region like Ladakh needs.</p><p class="eg"><a href="#contact">Talk to us about it <i aria-hidden="true">→</i></a></p></div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="roots" id="inspiration">
+    <div class="wrap">
+      <div class="text">
+        <h2>Lessons from the snow leopard</h2>
+        <p>In the mountains, surviving takes grit and a thick skin. Thriving takes agility, flexibility and resilience. Four habits of the snow leopard shape how we work.</p>
+      </div>
+      <ol class="traits">
+        <li data-at="0" class="" style="--p: 0.000;"><span class="n" aria-hidden="true">1</span><h3>Waits for the right moment</h3><p>It crosses sparse ground patiently, ready to pounce. We study a problem first, then move fast.</p></li>
+        <li data-at="0.28" class="" style="--p: 0.000;"><span class="n" aria-hidden="true">2</span><h3>Moves fast on hard ground</h3><p>Its chase runs over rock and ice at speed. We ship difficult work in small, quick steps.</p></li>
+        <li data-at="0.6" class="" style="--p: 0.000;"><span class="n" aria-hidden="true">3</span><h3>Changes direction mid-chase</h3><p>When the prey turns, it turns. When a plan stops working, we change the approach, not the goal.</p></li>
+        <li data-at="0.96" style="--p: 0.000;"><span class="n" aria-hidden="true">4</span><h3>Misses and goes again</h3><p>Most chases fail, and it shows up for the next one. We test, fix and release again.</p></li>
+      </ol>
+    </div>
+    <div class="range">
+      <div class="range-in">
+        <img src="./img/range.webp" width="1672" height="941" loading="lazy" alt="Snow-covered Himalayan peaks drawn in the Snolep colours">
+      </div>
+      <div class="range-fade" aria-hidden="true"></div>
+    </div>
+  </section>
+</main>
+
+<div class="finale" id="contact">
+  <section style="padding:0">
+    <div class="wrap contact">
+      <div class="say">
+        <h2>Project enquiries</h2>
+        <p>A few lines are enough. The message lands in our inbox and we answer by email.</p>
+        <button class="btn open-brief" type="button">Start a project <i aria-hidden="true">→</i></button>
+      </div>
+      
+    <form class="brief" id="brief">
+        <fieldset>
+          <legend>What do you need?</legend>
+          <div class="chips">
+            <label><input type="radio" name="need" value="A website" checked=""><span>A website</span></label>
+            <label><input type="radio" name="need" value="A platform or software"><span>A platform or software</span></label>
+            <label><input type="radio" name="need" value="Sustainability consulting"><span>Sustainability consulting</span></label>
+            <label><input type="radio" name="need" value="Not sure yet"><span>Not sure yet</span></label>
+          </div>
+        </fieldset>
+        <div class="pair">
+          <div><label for="b-name">Your name</label><input id="b-name" type="text" name="name" autocomplete="name" required=""></div>
+          <div><label for="b-email">Your email</label><input id="b-email" type="email" name="email" autocomplete="email" required=""></div>
+        </div>
+        <div><label for="b-about">About the project</label><textarea id="b-about" name="message" required="" placeholder="What it is for, and when you need it"></textarea></div>
+        <input type="text" name="_honey" tabindex="-1" autocomplete="off" hidden="">
+        <div class="send">
+          <button class="btn" id="send" type="submit">Send message <i aria-hidden="true">→</i></button>
+          <p class="status" id="status" role="status"></p>
+        </div>
+      </form></div>
+  </section>
+  <div class="name"><div id="wordmark" role="img" aria-label="Snolep Technologies" style="height: 62px;"></div></div>
+  <footer class="foot">
+    <span>© 2026 Snolep Technologies. Ladakh, India.</span>
+    <a href="https://www.instagram.com/snolep.in/" target="_blank" rel="noopener">Instagram</a>
+  </footer>
+</div>
+
+<div class="rail-scrim" aria-hidden="true"></div>
+<aside class="rail" id="rail" aria-label="Site">
+  <a class="rail-brand" href="#top">SNOLEP<small>Technologies</small></a>
+  <button class="rail-close" type="button" aria-label="Close menu">×</button>
+  <nav class="rail-block rail-index" aria-label="Index">
+    <span class="rail-label">Index</span>
+    <a href="#top" data-section="hero" aria-current="true"><span>01</span>Home</a>
+    <a href="#values" data-section="values" aria-current="false"><span>02</span>Values</a>
+    <a href="#work" data-section="work" aria-current="false"><span>03</span>What we build</a>
+    <a href="#inspiration" data-section="inspiration" aria-current="false"><span>04</span>Inspiration</a>
+    <a href="#contact" data-section="contact" aria-current="false"><span>05</span>Contact</a>
+  </nav>
+  <div class="rail-block rail-links">
+    <span class="rail-label">Live work</span>
+    <a href="https://alhgha.com/" target="_blank" rel="noopener">ALHGHA <i aria-hidden="true">↗</i></a>
+    <a href="https://alatoa.in/" target="_blank" rel="noopener">ALATOA <i aria-hidden="true">↗</i></a>
+    <a href="https://fynivo.in/" target="_blank" rel="noopener">Fynivo <i aria-hidden="true">↗</i></a>
+    <a href="https://centralasianmuseum.org/" target="_blank" rel="noopener">Central Asian Museum <i aria-hidden="true">↗</i></a>
+  </div>
+  <div class="rail-block rail-links">
+    <span class="rail-label">Contact</span>
+    <a href="https://www.instagram.com/snolep.in/" target="_blank" rel="noopener">@snolep.in <i aria-hidden="true">↗</i></a>
+    <div class="rail-time"><span>Ladakh</span><time class="rail-clock" data-zone="Asia/Kolkata" data-suffix="IST">11:43 IST</time></div>
+  </div>
+  <div class="rail-foot">
+    <a class="rail-cta" href="#contact">Start a project <i aria-hidden="true">→</i></a>
+    <button class="rail-top" type="button">Back to top ↑</button>
+  </div>
+</aside>
+
+<dialog class="brief-dialog" aria-label="Project enquiry">
+  <h3>Project enquiry</h3>
+  <button class="close" type="button" aria-label="Close">×</button>
+</dialog>
+
+<div class="cursor" aria-hidden="true" style="--left: 1.0000; --x: -100.0px; --y: -100.0px; --s: 0.000; --stretch: 1.000; --angle: 0.0deg;">
+  <svg viewBox="0 0 44 44"><circle class="track" cx="22" cy="22" r="20"></circle><circle class="progress" cx="22" cy="22" r="20" pathLength="1"></circle></svg>
+  <span class="disc"><span>Work<br>with us</span></span>
+</div>
+
+<script>
+  // The rail: the index marks the section you're in; the clock shows the studio's time; Copy copies
+  // the address; Back to top; and under 1100px it's a drawer off the Menu button.
+  (() => {
+    const rail = document.getElementById('rail');
+    const scrim = document.querySelector('.rail-scrim');
+    const menu = document.querySelector('.menu-btn');
+    const wide = matchMedia('(min-width: 1100px)');
+    const still = matchMedia('(prefers-reduced-motion: reduce)');
+    const links = [...rail.querySelectorAll('.rail-index a')];
+    const sections = links.map((a) => document.getElementById(a.dataset.section));
+
+    let queued = false;
+    const mark = () => {
+      queued = false;
+      const line = innerHeight * 0.4;
+      let current = 0;
+      sections.forEach((el, i) => { if (el.getBoundingClientRect().top <= line) current = i; });
+      if (innerHeight + scrollY >= document.documentElement.scrollHeight - 2) current = sections.length - 1;
+      links.forEach((a, i) => a.setAttribute('aria-current', String(i === current)));
+    };
+    const queue = () => { if (!queued) { queued = true; requestAnimationFrame(mark); } };
+    addEventListener('scroll', queue, { passive: true });
+    addEventListener('resize', queue);
+    mark();
+
+    const clock = rail.querySelector('.rail-clock');
+    const fmt = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: clock.dataset.zone });
+    const tick = () => { clock.textContent = `${fmt.format(new Date())} ${clock.dataset.suffix}`; };
+    tick();
+    setInterval(tick, 15000);
+
+    rail.querySelectorAll('.copy').forEach((btn) => btn.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(btn.dataset.copy); btn.textContent = 'Copied'; }
+      catch { btn.textContent = 'Press ⌘C'; getSelection().selectAllChildren(btn.previousElementSibling); }
+      setTimeout(() => { btn.textContent = 'Copy'; }, 1600);
+    }));
+    rail.querySelector('.rail-top').addEventListener('click', () => scrollTo({ top: 0, behavior: still.matches ? 'auto' : 'smooth' }));
+
+    // the drawer
+    const setOpen = (open) => {
+      rail.classList.toggle('open', open);
+      scrim.classList.toggle('open', open);
+      menu.setAttribute('aria-expanded', String(open));
+      if (!wide.matches) rail.inert = !open;
+      if (open) rail.querySelector('.rail-close').focus();
+      else if (rail.contains(document.activeElement)) menu.focus();
+    };
+    const fit = () => { rail.inert = !wide.matches && !rail.classList.contains('open'); if (wide.matches) setOpen(false); };
+    menu.addEventListener('click', () => setOpen(true));
+    rail.querySelector('.rail-close').addEventListener('click', () => setOpen(false));
+    scrim.addEventListener('click', () => setOpen(false));
+    addEventListener('keydown', (e) => { if (e.key === 'Escape' && rail.classList.contains('open')) setOpen(false); });
+    rail.addEventListener('click', (e) => { if (!wide.matches && e.target.closest('a')) setOpen(false); });
+    wide.addEventListener('change', fit);
+    fit();
+  })();
+
+  // The brief: sent to our inbox through FormSubmit; the address lives in LEADS.
+  (() => {
+    const LEADS = '__LEADS__';
+    const form = document.getElementById('brief'), send = document.getElementById('send'), status = document.getElementById('status');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const d = Object.fromEntries(new FormData(form));
+      if (d._honey) return;
+      delete d._honey;
+      if (LEADS.startsWith('__')) { status.textContent = 'This form is still being connected. Please check back shortly.'; return; }
+      send.disabled = true; status.textContent = 'Sending…';
+      try {
+        const r = await fetch(`https://formsubmit.co/ajax/${LEADS}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ ...d, _subject: `New project enquiry from ${d.name}`, _template: 'table' }) });
+        const j = await r.json();
+        if (!r.ok || String(j.success) !== 'true') throw new Error(j.message || 'failed');
+        form.reset(); status.textContent = 'Sent. Thank you, we will reply by email.';
+      } catch { status.textContent = 'That did not send. Please try again in a minute.'; }
+      send.disabled = false;
+    });
+  })();
+
+  // The form: on a desktop it lives in a panel the contact section opens; on a phone it stays in place.
+  const desk = matchMedia('(pointer: fine) and (min-width: 901px)');
+  const brief = (() => {
+    const form = document.getElementById('brief'), contact = document.querySelector('.contact'), dialog = document.querySelector('.brief-dialog');
+    const place = () => {
+      if (desk.matches) { dialog.appendChild(form); contact.classList.add('form-away'); }
+      else { if (dialog.open) dialog.close(); contact.appendChild(form); contact.classList.remove('form-away'); }
+    };
+    desk.addEventListener('change', place); place();
+    const open = () => { if (!dialog.open) { dialog.showModal(); form.querySelector('input:checked').focus(); } };
+    dialog.querySelector('.close').addEventListener('click', () => dialog.close());
+    dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); });     // a click on the dimmed page
+    document.querySelector('.open-brief').addEventListener('click', open);
+    // the other Start a project buttons open the same panel on a desktop
+    document.querySelectorAll('a.btn[href="#contact"], a.rail-cta').forEach((l) => l.addEventListener('click', (e) => { if (desk.matches) { e.preventDefault(); open(); } }));
+    return { open, dialog };
+  })();
+
+  // The cursor: a ring eased behind the pointer, filled with the scroll progress. Over the contact
+  // section (desktop) it turns into a "Work with us" bubble, stretched along its motion and trailing
+  // fading copies of itself; a click anywhere there opens the form.
+  (() => {
+    const fine = matchMedia('(pointer: fine)');
+    const still = matchMedia('(prefers-reduced-motion: reduce)');
+    const el = document.querySelector('.cursor'), dark = document.querySelector('.finale');
+    const ghosts = Array.from({ length: 12 }, () => {
+      const g = document.createElement('span');
+      g.className = 'cursor-ghost';
+      document.body.appendChild(g);
+      return { el: g, x: 0, y: 0, t: -1, s: 1 };
+    });
+    let gi = 0, mx = -100, my = -100, x = mx, y = my, s = 0, seen = false, raf = 0, last = 0, lx = 0, ly = 0, stretch = 1, angle = 0, inLink = false;
+    const progress = () => {
+      const max = document.documentElement.scrollHeight - innerHeight;
+      el.style.setProperty('--left', (1 - Math.min(1, Math.max(0, scrollY / Math.max(1, max)))).toFixed(4));
+    };
+    const head = document.querySelector('.site-head');
+    const shade = () => head.classList.toggle('on-dark', dark.getBoundingClientRect().top < 32);
+    addEventListener('scroll', shade, { passive: true }); shade();
+    const tick = (now) => {
+      raf = 0;
+      const dt = Math.min(0.05, last ? (now - last) / 1000 : 1 / 60);
+      last = now;
+      const k = still.matches ? 1 : 1 - Math.exp(-dt * 14);
+      const px = x, py = y;
+      x += (mx - x) * k; y += (my - y) * k;
+      const d = dark.getBoundingClientRect();
+      const over = mx >= d.left && mx <= d.right && my >= d.top && my <= d.bottom;
+      inLink = over && desk.matches && !brief.dialog.open;
+      el.classList.toggle('is-link', inLink);
+      dark.classList.toggle('is-target', inLink);
+      el.classList.toggle('on-dark', over);
+      s += ((inLink ? 1 : 0) - s) * (still.matches ? 1 : 1 - Math.exp(-dt * 12));
+      // motion blur: squash and stretch along the direction of travel, and leave copies behind
+      const vx = (x - px) / dt, vy = (y - py) / dt, speed = Math.hypot(vx, vy);
+      const want = still.matches ? 1 : 1 + Math.min(0.35, speed / 4000);
+      stretch += (want - stretch) * (1 - Math.exp(-dt * 18));
+      if (speed > 30) angle = Math.atan2(vy, vx) * 180 / Math.PI;
+      if (inLink && s > 0.5 && !still.matches && Math.hypot(x - lx, y - ly) > 9) {
+        const g = ghosts[gi++ % ghosts.length];
+        g.x = lx; g.y = ly; g.t = now; g.s = s;
+        lx = x; ly = y;
+      } else if (!inLink) { lx = x; ly = y; }
+      let busy = false;
+      for (const g of ghosts) {
+        if (g.t < 0) continue;
+        const age = (now - g.t) / 320;
+        if (age >= 1) { g.t = -1; g.el.style.opacity = 0; continue; }
+        busy = true;
+        g.el.style.opacity = (0.55 * (1 - age) * (1 - age)).toFixed(3);
+        g.el.style.transform = `translate3d(${g.x.toFixed(1)}px, ${g.y.toFixed(1)}px, 0) scale(${(g.s * (1 - 0.35 * age)).toFixed(3)})`;
+      }
+      el.style.setProperty('--x', `${x.toFixed(1)}px`);
+      el.style.setProperty('--y', `${y.toFixed(1)}px`);
+      el.style.setProperty('--s', s.toFixed(3));
+      el.style.setProperty('--stretch', stretch.toFixed(3));
+      el.style.setProperty('--angle', `${angle.toFixed(1)}deg`);
+      if (busy || Math.abs(mx - x) + Math.abs(my - y) > 0.2 || Math.abs((inLink ? 1 : 0) - s) > 0.002 || Math.abs(stretch - 1) > 0.002) raf = requestAnimationFrame(tick);
+      else last = 0;
+    };
+    const go = () => { if (!raf) raf = requestAnimationFrame(tick); };
+    addEventListener('pointermove', (e) => {
+      if (e.pointerType !== 'mouse' || !fine.matches) return;
+      mx = e.clientX; my = e.clientY;
+      if (!seen) { seen = true; x = lx = mx; y = ly = my; }
+      go();
+    }, { passive: true });
+    document.documentElement.addEventListener('pointerleave', () => { mx = my = -100; seen = false; go(); });
+    addEventListener('scroll', () => { progress(); go(); }, { passive: true });
+    addEventListener('resize', progress);
+    progress();
+    // anywhere in the section opens the form, except its own links
+    dark.addEventListener('click', (e) => { if (desk.matches && !e.target.closest('a, button, dialog')) brief.open(); });
+  })();
+</script><span class="cursor-ghost"></span><span class="cursor-ghost"></span><span class="cursor-ghost"></span><span class="cursor-ghost"></span><span class="cursor-ghost"></span><span class="cursor-ghost"></span><span class="cursor-ghost"></span><span class="cursor-ghost"></span><span class="cursor-ghost"></span><span class="cursor-ghost"></span><span class="cursor-ghost"></span><span class="cursor-ghost"></span>
+
+<script type="module">
+  // The dots are snow. On load it settles into the logo's leopard and falls away from it as the page
+  // starts to move; on the mountain it settles into the leopard that runs the ridge and leaps off
+  // the end into snow again; at the bottom it settles into the company's name.
+  import { createDots } from './js/dots.js';
+  import { createLeopard, STAND, LEAP, CYCLE } from './js/leopard.js';
+
+  const leopard = document.getElementById('leopard');
+  const clamp = (v) => Math.min(1, Math.max(0, v));
+  const smooth = (v) => { v = clamp(v); return v * v * (3 - 2 * v); };
+  const show = (v) => { leopard.style.opacity = v.toFixed(3); };
+
+  // The path the leopard runs, traced from the line drawn on the mountain: fractions of the
+  // picture, from the high summit down to the jump. Paws on the line.
+  const range = document.querySelector('.range-in'), wordmark = document.getElementById('wordmark');
+  const small = matchMedia('(max-width: 900px)').matches;
+  const RIDGE = [[0.8056,0.1138],[0.7997,0.1261],[0.7937,0.1381],[0.7872,0.1491],[0.7802,0.1589],[0.7727,0.1676],[0.7654,0.1766],[0.7587,0.1865],[0.7525,0.1974],[0.7469,0.2095],[0.7416,0.2227],[0.7362,0.2356],[0.7304,0.248],[0.724,0.2593],[0.7172,0.2698],[0.7101,0.2796],[0.7025,0.2882],[0.6944,0.2955],[0.6862,0.3018],[0.6777,0.3069],[0.6689,0.3108],[0.6603,0.3151],[0.6518,0.3201],[0.6435,0.326],[0.6359,0.334],[0.6291,0.3441],[0.6229,0.3554],[0.6172,0.3676],[0.6117,0.3803],[0.606,0.3926],[0.5998,0.4043],[0.5931,0.415],[0.586,0.4251],[0.5789,0.4352],[0.5719,0.4455],[0.5652,0.4563],[0.5592,0.4681],[0.5537,0.4807],[0.5482,0.4934],[0.5425,0.5055],[0.5363,0.5167],[0.5292,0.5264],[0.5216,0.5349],[0.5136,0.5428],[0.5058,0.551],[0.4981,0.5596],[0.4908,0.5689],[0.4836,0.5787],[0.4763,0.5878],[0.4685,0.5949],[0.4604,0.5995],[0.4518,0.6017],[0.4428,0.6018],[0.4338,0.6018],[0.425,0.6032],[0.4165,0.6067],[0.4081,0.612],[0.3998,0.6183],[0.3917,0.6253],[0.3836,0.6325],[0.3755,0.6396],[0.3674,0.6467],[0.3593,0.6541],[0.3514,0.662],[0.3437,0.6703],[0.336,0.6786],[0.3282,0.6867],[0.3204,0.6948],[0.3123,0.702],[0.304,0.7083],[0.2956,0.7144],[0.2872,0.7207],[0.2788,0.7271],[0.2705,0.7335],[0.2623,0.7404],[0.2542,0.7476],[0.2461,0.7547],[0.2379,0.7616],[0.23,0.7694],[0.2213,0.7746]];
+  const ridge = (() => {
+    const ds = [0];
+    for (let i = 1; i < RIDGE.length; i++) ds.push(ds[i - 1] + Math.hypot(RIDGE[i][0] - RIDGE[i - 1][0], (RIDGE[i][1] - RIDGE[i - 1][1]) * 941 / 1672));
+    const total = ds[ds.length - 1];
+    // the point a fraction u of the way along, with the slope there
+    const at = (u) => {
+      const d = clamp(u) * total;
+      let i = 1;
+      while (i < ds.length - 1 && ds[i] < d) i++;
+      const f = (d - ds[i - 1]) / (ds[i] - ds[i - 1] || 1);
+      const a = RIDGE[Math.max(0, i - 4)], b = RIDGE[Math.min(RIDGE.length - 1, i + 3)];
+      return { x: RIDGE[i - 1][0] + (RIDGE[i][0] - RIDGE[i - 1][0]) * f, y: RIDGE[i - 1][1] + (RIDGE[i][1] - RIDGE[i - 1][1]) * f, tx: b[0] - a[0], ty: (b[1] - a[1]) * 941 / 1672, d };
+    };
+    return { at, total };
+  })();
+  // The one moment: as the mountain scrolls by, RUN goes 0 to 1 while the summit and then the end
+  // of the drawn line pass the middle of the screen; OUT is the leap after it, in which the
+  // leopard falls apart into snow. Both follow the scrollbar, so scrolling back runs it backwards.
+  const runAt = (rect, vh) => {
+    const h = rect.height, a = vh * 0.5 - ridge.at(0).y * h, b = vh * 0.45 - ridge.at(1).y * h;
+    return { run: clamp((a - rect.top) / (a - b)), out: clamp((b - rect.top) / (vh * 0.28)) };
+  };
+  // The name at the bottom settles out of the snow, on the clock, once it is on screen
+  const nameState = {};
+  const nameClock = (t) => {
+    if (wordmark.getBoundingClientRect().bottom > innerHeight + 4) { nameState.since = undefined; return 0; }
+    if (nameState.since === undefined) nameState.since = t;
+    return smooth((t - nameState.since) / 1.8);
+  };
+  const span = (q, [a, b]) => clamp((q - a) / (b - a));
+  // eases a value towards where the scroll puts it, so wheel steps don't jerk the animal
+  const follow = (st, key, want, dt, rate = 9) => (st[key] = st[key] === undefined || Math.abs(want - st[key]) > 0.5 ? want : st[key] + (want - st[key]) * (1 - Math.exp(-dt * rate)));
+  // gallop: the pose advances with the ground covered; when the page stops, it stands
+  const stride = (st, dist, t, dt, moving) => {
+    if (Math.abs(dist - (st.dist ?? dist)) > 0.01) st.moved = t;
+    st.dist = dist;
+    const want = moving && t - (st.moved ?? -1) < 0.2 ? 1 : 0;
+    st.run = (st.run ?? 0) + (want - (st.run ?? 0)) * (1 - Math.exp(-dt * (want ? 12 : 4)));
+    const c = (dist / (440 * 1.15)) * 6, i = Math.floor(c), f = c - i;
+    const a = CYCLE[((i % 6) + 6) % 6], b = CYCLE[(((i + 1) % 6) + 6) % 6];
+    // standing: blend the gallop pose back to the standing one
+    return st.run > 0.98 ? { a, b, t: f } : { a: STAND, b: f < 0.5 ? a : b, t: st.run };
+  };
+  const ridgeState = {};
+  // the four habits: each fills a thin line across its top while the leopard runs its stretch
+  const traits = [...document.querySelectorAll('.traits li')].map((li) => ({ li, at: +li.dataset.at }));
+  traits.forEach((tr, i) => { tr.to = i + 1 < traits.length ? traits[i + 1].at : 1.05; });
+  const light = (run, here) => {
+    for (const tr of traits) {
+      const p = here ? clamp((run - tr.at) / (tr.to - tr.at)) : 0;
+      if (tr.p !== p) { tr.p = p; tr.li.style.setProperty('--p', p.toFixed(3)); tr.li.classList.toggle('is-on', here && run >= tr.at); }
+    }
+  };
+  let leopardRig;
+
+  const start = async () => {
+    try { await leopard.decode(); await document.fonts.load('800 100px Archivo'); } catch { /* draw with what there is */ }
+    if (!leopard.naturalWidth) { show(1); return; }
+    leopardRig = createLeopard(innerWidth < 700 ? 4500 : 5600);
+    window.dots = createDots({
+      canvas: document.querySelector('.dots'),
+      dark: ['.finale'],
+      forms: [
+        { // the logo's leopard: dots gather on load, the drawing takes over, and scrolling blows it away
+          el: leopard, image: leopard,
+          presence: ({ vh, t, scrollY, calm }) => {
+            if (calm) { show(1); return [0, 0]; }
+            const drawn = Math.min(smooth((t - 1.5) / 0.7), 1 - smooth(scrollY / (vh * 0.07)));
+            show(drawn);
+            return [Math.min(smooth(t / 1.5), 1 - clamp((scrollY - vh * 0.07) / (vh * 0.6))), 1 - drawn];
+          },
+        },
+        { // on the mountain: settles out of the snow on the summit, gallops down the drawn line as the
+          // page scrolls, stands when it stops, and leaps off the end of the line into snow
+          el: range, rig: leopardRig,
+          presence: ({ rect, vh, calm }) => {
+            const here = clamp((vh * 0.95 - (rect.top + ridge.at(0).y * rect.height)) / (vh * 0.3));
+            const p = calm ? here : Math.min(here, 1 - smooth(span(runAt(rect, vh).out, [0.15, 0.85])));
+            if (p <= 0) light(0, false);
+            return [p];
+          },
+          place: ({ rect, vh, t, calm }, X, Y) => {
+            const st = ridgeState, dt = Math.min(0.1, Math.max(0, t - (st.time ?? t))); st.time = t;
+            const want = calm ? { run: 0, out: 0 } : runAt(rect, vh);
+            const run = follow(st, 'run', want.run, dt), out = follow(st, 'out', want.out, dt);
+            light(run, true);
+            const scale = Math.min(0.42, rect.width * (small ? 0.24 : 0.145) / 440), body = 440 * scale;
+            const at = ridge.at(run);
+            let x = rect.left + at.x * rect.width, y = rect.top + at.y * rect.height;
+            let angle = Math.atan2(at.ty, at.tx) + Math.PI;     // the drawing faces left; turn it to the slope
+            angle = Math.max(-0.6, Math.min(0.6, Math.atan2(Math.sin(angle), Math.cos(angle))));
+            const g = stride(st, at.d * rect.width / scale, t, dt, run > 0 && run < 1);
+            angle *= 0.35 + 0.65 * (st.run ?? 0);
+            if (out > 0) {                                   // the leap: up and out over the dark slope
+              const e = Math.min(1, out * 1.25);
+              x -= body * 1.1 * e;
+              y += -Math.sin(Math.PI * e) * body * 0.32 + e * e * body * 0.35;
+              angle = angle * (1 - e) + (-0.25 + 0.55 * e) * e;
+              return leopardRig.pose({ x, y, angle, scale, a: LEAP }, X, Y);
+            }
+            return leopardRig.pose({ x, y, angle, scale, a: g.a, b: g.b, t: g.t }, X, Y);
+          },
+        },
+        { // the name
+          el: wordmark, text: (w) => (w < 620 ? ['SNOLEP', 'TECHNOLOGIES'] : ['SNOLEP TECHNOLOGIES']), font: '800 100px Archivo',
+          presence: ({ vh, t, calm }) => [calm ? clamp(1 - (document.documentElement.scrollHeight - innerHeight - scrollY) / (vh * 0.5)) : nameClock(t)],
+        },
+      ],
+    });
+  };
+  start();
+</script>
+
+
+</body></html>
